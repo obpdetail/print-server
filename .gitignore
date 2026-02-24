@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# VS Code
+.vscode/
+
+# Uploads & generated files
+uploads/
+printed/
+merged.pdf
+temp_*.pdf
+sorted_orders.json
+
+# Logs
+logs/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Secrets / config
+*.env
+.env
+config.local.py

@@ -5,11 +5,7 @@ Xử lý in ấn PDF: merge label, gửi lệnh in, quản lý trạng thái in.
 """
 
 import os
-import json
-from datetime import datetime
 
-import fitz       # PyMuPDF
-import pandas as pd
 import win32api
 
 # from error_handler import log_error, log_success, log_warning
