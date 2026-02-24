@@ -23,9 +23,10 @@ sys.path.insert(0, str(BASE_DIR))
 from error_handler import log_error, log_info, log_warning
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
-UPLOAD_FOLDER = BASE_DIR / "uploads"
-JOB_LOG_FILE  = BASE_DIR / "logs" / "jobs.json"
-ALLOWED_EXT   = {"pdf"}
+UPLOAD_FOLDER        = BASE_DIR / "uploads"
+JOB_LOG_FILE         = BASE_DIR / "logs" / "jobs.json"
+PRINTER_ALIASES_FILE = BASE_DIR / "printer_aliases.json"
+ALLOWED_EXT          = {"pdf"}
 MAX_FILE_MB   = 50
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
@@ -96,6 +97,22 @@ def get_default_printer() -> str:
         return ""
 
 
+def load_printer_aliases() -> dict:
+    """Đọc alias: {"Beeprt BY-496": "Máy In Cắt", ...}"""
+    if PRINTER_ALIASES_FILE.exists():
+        try:
+            with open(PRINTER_ALIASES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_printer_aliases(aliases: dict):
+    with open(PRINTER_ALIASES_FILE, "w", encoding="utf-8") as f:
+        json.dump(aliases, f, ensure_ascii=False, indent=2)
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -109,7 +126,49 @@ def index():
 def api_printers():
     printers = get_printers()
     default  = get_default_printer()
-    return jsonify({"printers": printers, "default": default})
+    aliases  = load_printer_aliases()
+    printer_list = [
+        {"id": p, "label": aliases.get(p, p)}
+        for p in printers
+    ]
+    return jsonify({"printers": printer_list, "default": default})
+
+
+# --- Cấu hình alias máy in ---------------------------------------------------
+
+@app.route("/api/printer-aliases", methods=["GET"])
+def api_get_aliases():
+    aliases  = load_printer_aliases()
+    printers = get_printers()
+    result   = [{"id": p, "alias": aliases.get(p, "")} for p in printers]
+    return jsonify({"aliases": result})
+
+
+@app.route("/api/printer-aliases", methods=["POST"])
+def api_set_alias():
+    data    = request.get_json(force=True) or {}
+    printer = data.get("printer", "").strip()
+    alias   = data.get("alias", "").strip()
+    if not printer:
+        return jsonify({"ok": False, "error": "Thiếu tên máy in."}), 400
+    aliases = load_printer_aliases()
+    if alias:
+        aliases[printer] = alias
+    else:
+        aliases.pop(printer, None)   # alias rỗng → xóa mapping
+    save_printer_aliases(aliases)
+    log_info(f"Alias máy in: '{printer}' → '{alias or '(đã xóa)'}'")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/printer-aliases/<path:printer>", methods=["DELETE"])
+def api_delete_alias(printer):
+    aliases = load_printer_aliases()
+    if printer in aliases:
+        del aliases[printer]
+        save_printer_aliases(aliases)
+        log_info(f"Đã xóa alias máy in: '{printer}'")
+    return jsonify({"ok": True})
 
 
 # --- Upload file -------------------------------------------------------------

@@ -31,7 +31,7 @@
     }
 
     /* ── Layout ─────────────────────────────────────────────────── */
-    .container { max-width: 960px; margin: 0 auto; }
+    .container { max-width: 1400px; margin: 0 auto; }
     header {
       display: flex; align-items: center; gap: 12px;
       margin-bottom: 28px;
@@ -203,6 +203,32 @@
       font-size: 1rem; font-weight: 700; margin-bottom: 14px;
       border-bottom: 1px solid var(--border); padding-bottom: 10px;
     }
+
+    /* ── Printer Alias Table ─────────────────────────────────────────── */
+    .alias-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .alias-table th {
+      text-align: left; color: var(--muted); font-weight: 700;
+      padding: 6px 10px; border-bottom: 1px solid var(--border);
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+    }
+    .alias-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .alias-table tr:last-child td { border-bottom: none; }
+    .alias-table tr:hover td { background: rgba(255,255,255,.025); }
+    .alias-input {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 6px 10px;
+      font-size: .83rem; outline: none; width: 100%;
+      transition: border-color .2s;
+    }
+    .alias-input:focus { border-color: var(--accent); }
+    .btn-save {
+      background: rgba(79,142,247,.15); color: var(--accent);
+      padding: 5px 12px; font-size: .78rem;
+    }
+    .btn-save:hover { background: rgba(79,142,247,.3); }
+    .printer-id { color: var(--muted); font-size: .78rem; font-family: monospace; }
+    .alias-actions { display: flex; gap: 6px; }
+
     .full-col { grid-column: 1 / -1; }
   </style>
 </head>
@@ -337,9 +363,9 @@ async function loadPrinters() {
     }
     d.printers.forEach(p => {
       const opt = document.createElement('option');
-      opt.value = p;
-      opt.textContent = p;
-      if (p === d.default) opt.selected = true;
+      opt.value       = p.id;      // tên thật – dùng khi gửi lệnh in
+      opt.textContent = p.label + " → " + p.id;   // tên hiển thị (alias hoặc tên gốc)
+      if (p.id === d.default) opt.selected = true;
       sel.appendChild(opt);
     });
   } catch (e) {
@@ -522,10 +548,78 @@ async function refreshJobs() {
     </div>
   `).join('');
 }
+/* ── Printer Aliases ────────────────────────────────────────── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
+async function loadAliasSettings() {
+  const r = await fetch('/api/printer-aliases');
+  const d = await r.json();
+  const tbody = document.getElementById('alias-tbody');
+
+  if (!d.aliases.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="file-empty">Không tìm thấy máy in.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = d.aliases.map(a => `
+    <tr>
+      <td class="printer-id">${escHtml(a.id)}</td>
+      <td>
+        <input class="alias-input" type="text"
+               id="alias-input-${escHtml(a.id)}"
+               value="${escHtml(a.alias)}"
+               placeholder="${escHtml(a.id)}"
+               onkeydown="if(event.key==='Enter') saveAlias('${escHtml(a.id)}', this.value)" />
+      </td>
+      <td>
+        <div class="alias-actions">
+          <button class="btn btn-save"
+                  onclick="saveAlias('${escHtml(a.id)}', document.getElementById('alias-input-${escHtml(a.id)}').value)">
+            💾 Lưu
+          </button>
+          <button class="btn btn-danger"
+                  onclick="deleteAlias('${escHtml(a.id)}')">
+            ✕ Xóa
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function saveAlias(printer, alias) {
+  const r = await fetch('/api/printer-aliases', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ printer, alias: alias.trim() }),
+  });
+  const d = await r.json();
+  if (d.ok) {
+    const display = alias.trim() || '(tên gốc)';
+    toast(`✅ "Đã lưu: ${printer}" → "${display}"`, 'ok');
+    loadPrinters();
+    loadAliasSettings();
+  } else {
+    toast(`❌ ${d.error}`, 'err');
+  }
+}
+
+async function deleteAlias(printer) {
+  const r = await fetch(`/api/printer-aliases/${encodeURIComponent(printer)}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.ok) {
+    toast(`Đã xóa alias: "${printer}"`, 'ok');
+    loadPrinters();
+    loadAliasSettings();
+  }
+}
 /* ── Init ─────────────────────────────────────────────────── */
 (async () => {
-  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), refreshJobs()]);
+  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), refreshJobs(), loadAliasSettings()]);
 })();
 
 // Tự động làm mới job mỗi 10 giây
