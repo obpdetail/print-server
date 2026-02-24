@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🖨️ Print Server</title>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #222637;
+      --border:    #2e3350;
+      --accent:    #4f8ef7;
+      --accent-h:  #3a74e0;
+      --green:     #34d399;
+      --red:       #f87171;
+      --yellow:    #fbbf24;
+      --text:      #e2e8f0;
+      --muted:     #8892aa;
+      --radius:    12px;
+      --shadow:    0 4px 24px rgba(0,0,0,.45);
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 28px;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    .badge {
+      font-size: .72rem; padding: 3px 10px;
+      border-radius: 99px; font-weight: 600;
+      background: var(--accent); color: #fff;
+    }
+    .server-info {
+      margin-left: auto; font-size: .8rem; color: var(--muted);
+      text-align: right; line-height: 1.6;
+    }
+    .server-info span { color: var(--green); font-weight: 600; }
+
+    .grid { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: .85rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: var(--muted); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Drop Zone ──────────────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    #drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(79,142,247,.07);
+    }
+    #drop-zone .icon { font-size: 2.4rem; margin-bottom: 10px; }
+    #drop-zone p { color: var(--muted); font-size: .88rem; }
+    #drop-zone strong { color: var(--accent); }
+    #file-input { display: none; }
+
+    /* ── Upload Progress ────────────────────────────────────────── */
+    #upload-progress {
+      margin-top: 14px; display: none;
+    }
+    .progress-bar-wrap {
+      background: var(--surface2); border-radius: 99px;
+      height: 6px; overflow: hidden; margin-top: 8px;
+    }
+    .progress-bar {
+      height: 100%; background: var(--accent);
+      border-radius: 99px; transition: width .3s;
+      width: 0%;
+    }
+
+    /* ── Print Controls ─────────────────────────────────────────── */
+    .field { margin-bottom: 14px; }
+    label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
+    select, input[type=number] {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 9px 12px;
+      font-size: .9rem; outline: none;
+      appearance: none;
+      transition: border-color .2s;
+    }
+    select:focus, input[type=number]:focus { border-color: var(--accent); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 22px; border-radius: 8px; border: none;
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--accent); color: #fff; width: 100%; justify-content: center; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-danger { background: rgba(248,113,113,.15); color: var(--red); padding: 5px 12px; font-size: .78rem; }
+    .btn-danger:hover { background: rgba(248,113,113,.3); }
+
+    /* ── File List ──────────────────────────────────────────────── */
+    #file-list { display: flex; flex-direction: column; gap: 8px; }
+    .file-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border-radius: 8px;
+      padding: 10px 14px; cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color .2s, background .2s;
+    }
+    .file-item:hover { background: var(--surface); }
+    .file-item.selected { border-color: var(--accent); }
+    .file-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name {
+      font-size: .85rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .file-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+    .file-empty { color: var(--muted); font-size: .85rem; text-align: center; padding: 20px 0; }
+
+    /* ── PDF Preview ─────────────────────────────────────────────── */
+    #preview-wrap {
+      margin-top: 20px; display: none;
+    }
+    #preview-wrap iframe {
+      width: 100%; height: 480px; border: 1px solid var(--border);
+      border-radius: var(--radius); background: #fff;
+    }
+
+    /* ── Job History ─────────────────────────────────────────────── */
+    #job-list { display: flex; flex-direction: column; gap: 8px; }
+    .job-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border-radius: 8px;
+      padding: 10px 14px; font-size: .82rem;
+    }
+    .job-status { font-size: 1rem; flex-shrink: 0; }
+    .job-info { flex: 1; min-width: 0; }
+    .job-name {
+      font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .job-meta { color: var(--muted); margin-top: 2px; }
+    .tag {
+      padding: 2px 9px; border-radius: 99px; font-size: .72rem; font-weight: 600;
+    }
+    .tag-ok  { background: rgba(52,211,153,.15); color: var(--green); }
+    .tag-err { background: rgba(248,113,113,.15); color: var(--red); }
+
+    /* ── Toast ───────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 18px;
+      font-size: .85rem; max-width: 320px;
+      box-shadow: var(--shadow);
+      transform: translateY(80px); opacity: 0;
+      transition: transform .3s, opacity .3s;
+      pointer-events: none; z-index: 999;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.ok   { border-left: 4px solid var(--green); }
+    #toast.err  { border-left: 4px solid var(--red); }
+    #toast.info { border-left: 4px solid var(--accent); }
+
+    /* ── Spinner ─────────────────────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .section-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: 14px;
+      border-bottom: 1px solid var(--border); padding-bottom: 10px;
+    }
+    .full-col { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div>🖨️</div>
+    <h1>Print Server</h1>
+    <span class="badge">LAN</span>
+    <div class="server-info" id="server-info">Đang tải...</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- ── Cột trái: Upload + Điều khiển in ── -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Upload card -->
+      <div class="card">
+        <div class="card-title">📤 Tải lên file PDF</div>
+
+        <div id="drop-zone">
+          <div class="icon">📄</div>
+          <p><strong>Kéo thả file PDF vào đây</strong></p>
+          <p style="margin-top:6px;">hoặc <strong>nhấn để chọn file</strong></p>
+          <input type="file" id="file-input" accept=".pdf" multiple />
+        </div>
+
+        <div id="upload-progress">
+          <p id="upload-msg" style="font-size:.82rem;color:var(--muted)"></p>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+        </div>
+      </div>
+
+      <!-- Print control card -->
+      <div class="card">
+        <div class="card-title">🖨️ Điều khiển in</div>
+
+        <div class="field">
+          <label>Máy in</label>
+          <select id="printer-select">
+            <option value="">⏳ Đang tải danh sách máy in...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Số bản in</label>
+          <input type="number" id="copies" value="1" min="1" max="99" />
+        </div>
+
+        <div class="field" style="margin-bottom:0">
+          <label>File đã chọn</label>
+          <div id="selected-label" style="font-size:.85rem;color:var(--muted);padding:8px 0;">
+            Chưa chọn file nào
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="print-btn" disabled onclick="printSelected()">
+          🖨️ In ngay
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── Cột phải: Danh sách file ── -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span>📂 File đã upload</span>
+        <button class="btn btn-danger" onclick="refreshFiles()" style="padding:4px 12px;">↻ Làm mới</button>
+      </div>
+      <div id="file-list"><div class="file-empty">Chưa có file nào.</div></div>
+    </div>
+
+    <!-- ── PDF Preview (full width) ── -->
+    <div class="card full-col" id="preview-wrap" style="display:none">
+      <div class="card-title">👁️ Xem trước PDF</div>
+      <iframe id="pdf-iframe" src=""></iframe>
+    </div>
+
+    <!-- ── Lịch sử in (full width) ── -->
+    <div class="card full-col">
+      <div class="card-title" style="justify-content:space-between">
+        <span>📋 Lịch sử in</span>
+        <button class="btn btn-danger" onclick="refreshJobs()" style="padding:4px 12px;">↻ Làm mới</button>
+      </div>
+      <div id="job-list"><div class="file-empty">Chưa có lệnh in nào.</div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+/* ── State ────────────────────────────────────────────────── */
+let selectedFile = null;
+
+/* ── Toast ────────────────────────────────────────────────── */
+let _toastTimer = null;
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+
+/* ── Server info ──────────────────────────────────────────── */
+async function loadServerInfo() {
+  try {
+    const r = await fetch('/api/info');
+    const d = await r.json();
+    document.getElementById('server-info').innerHTML =
+      `IP LAN: <span>${d.ip}</span> &nbsp;|&nbsp; Port: <span>${d.port}</span>`;
+  } catch { /* ignore */ }
+}
+
+/* ── Printers ─────────────────────────────────────────────── */
+async function loadPrinters() {
+  try {
+    const r = await fetch('/api/printers');
+    const d = await r.json();
+    const sel = document.getElementById('printer-select');
+    sel.innerHTML = '';
+
+    if (!d.printers.length) {
+      sel.innerHTML = '<option value="">Không tìm thấy máy in</option>';
+      return;
+    }
+    d.printers.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      if (p === d.default) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    document.getElementById('printer-select').innerHTML =
+      '<option value="">Lỗi tải máy in</option>';
+  }
+}
+
+/* ── File list ────────────────────────────────────────────── */
+async function refreshFiles() {
+  const r = await fetch('/api/files');
+  const d = await r.json();
+  const list = document.getElementById('file-list');
+
+  if (!d.files.length) {
+    list.innerHTML = '<div class="file-empty">Chưa có file nào.</div>';
+    return;
+  }
+
+  list.innerHTML = d.files.map(f => `
+    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}"
+         onclick="selectFile('${f.name}')" data-name="${f.name}">
+      <div class="file-icon">📄</div>
+      <div class="file-info">
+        <div class="file-name">${f.name}</div>
+        <div class="file-meta">${f.size_kb} KB &nbsp;·&nbsp; ${f.time}</div>
+      </div>
+      <button class="btn btn-danger"
+              onclick="event.stopPropagation(); deleteFile('${f.name}')">🗑</button>
+    </div>
+  `).join('');
+}
+
+function selectFile(name) {
+  selectedFile = name;
+  document.getElementById('selected-label').textContent = name;
+  document.getElementById('print-btn').disabled = false;
+
+  // Highlight
+  document.querySelectorAll('.file-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.name === name);
+  });
+
+  // Preview
+  const wrap = document.getElementById('preview-wrap');
+  const iframe = document.getElementById('pdf-iframe');
+  iframe.src = `/api/files/${encodeURIComponent(name)}`;
+  wrap.style.display = 'block';
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function deleteFile(name) {
+  if (!confirm(`Xóa file "${name}"?`)) return;
+  const r = await fetch(`/api/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (d.ok) {
+    toast('Đã xóa file.', 'ok');
+    if (selectedFile === name) {
+      selectedFile = null;
+      document.getElementById('selected-label').textContent = 'Chưa chọn file nào';
+      document.getElementById('print-btn').disabled = true;
+      document.getElementById('preview-wrap').style.display = 'none';
+    }
+    refreshFiles();
+  } else {
+    toast(d.error, 'err');
+  }
+}
+
+/* ── Upload ───────────────────────────────────────────────── */
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => uploadFiles([...fileInput.files]));
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+  if (!files.length) { toast('Chỉ chấp nhận file PDF!', 'err'); return; }
+  uploadFiles(files);
+});
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+
+  const progressWrap = document.getElementById('upload-progress');
+  const progressBar  = document.getElementById('progress-bar');
+  const uploadMsg    = document.getElementById('upload-msg');
+
+  progressWrap.style.display = 'block';
+  progressBar.style.width    = '0%';
+
+  let done = 0;
+  for (const file of files) {
+    uploadMsg.textContent = `Đang tải: ${file.name} (${done + 1}/${files.length})`;
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+      done++;
+      progressBar.style.width = `${Math.round(done / files.length * 100)}%`;
+    } catch (e) {
+      toast(`Lỗi upload ${file.name}: ${e.message}`, 'err');
+    }
+  }
+
+  uploadMsg.textContent = `✅ Đã tải lên ${done}/${files.length} file.`;
+  setTimeout(() => { progressWrap.style.display = 'none'; fileInput.value = ''; }, 2000);
+  toast(`Upload thành công ${done} file!`, 'ok');
+  refreshFiles();
+}
+
+/* ── Print ────────────────────────────────────────────────── */
+async function printSelected() {
+  if (!selectedFile) { toast('Vui lòng chọn file cần in.', 'err'); return; }
+
+  const printer = document.getElementById('printer-select').value;
+  const copies  = parseInt(document.getElementById('copies').value) || 1;
+  const btn     = document.getElementById('print-btn');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Đang gửi lệnh in...';
+
+  try {
+    const r = await fetch('/api/print', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: selectedFile, printer, copies }),
+    });
+    const d = await r.json();
+
+    if (d.ok) {
+      toast(`✅ Đã gửi lệnh in: ${selectedFile}`, 'ok');
+      refreshJobs();
+    } else {
+      toast(`❌ ${d.error}`, 'err');
+    }
+  } catch (e) {
+    toast(`❌ Lỗi kết nối: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🖨️ In ngay';
+  }
+}
+
+/* ── Jobs ─────────────────────────────────────────────────── */
+async function refreshJobs() {
+  const r = await fetch('/api/jobs');
+  const d = await r.json();
+  const list = document.getElementById('job-list');
+
+  if (!d.jobs.length) {
+    list.innerHTML = '<div class="file-empty">Chưa có lệnh in nào.</div>';
+    return;
+  }
+
+  list.innerHTML = d.jobs.map(j => `
+    <div class="job-item">
+      <div class="job-status">${j.status === 'success' ? '✅' : '❌'}</div>
+      <div class="job-info">
+        <div class="job-name">${j.filename}</div>
+        <div class="job-meta">
+          🖨 ${j.printer} &nbsp;·&nbsp; ${j.time}
+          ${j.message ? `&nbsp;·&nbsp; ${j.message}` : ''}
+        </div>
+      </div>
+      <span class="tag ${j.status === 'success' ? 'tag-ok' : 'tag-err'}">
+        ${j.status === 'success' ? 'Thành công' : 'Lỗi'}
+      </span>
+    </div>
+  `).join('');
+}
+
+/* ── Init ─────────────────────────────────────────────────── */
+(async () => {
+  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), refreshJobs()]);
+})();
+
+// Tự động làm mới job mỗi 10 giây
+setInterval(refreshJobs, 10_000);
+</script>
+</body>
+</html>
