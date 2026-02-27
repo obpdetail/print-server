@@ -21,6 +21,7 @@ BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
 from error_handler import log_error, log_info, log_warning
+from scan_pdf import scan_pdf_for_orders
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
 UPLOAD_FOLDER        = BASE_DIR / "uploads"
@@ -246,6 +247,21 @@ def api_print():
     if not filepath.exists():
         return jsonify({"ok": False, "error": f"File không tồn tại: {filename}"}), 404
 
+    # Quét PDF để lấy thông tin đơn hàng
+    orders_info = []
+    try:
+        df_orders = scan_pdf_for_orders(str(filepath))
+        if not df_orders.empty:
+            orders_info = df_orders.to_dict('records')
+            log_info(f"📦 Quét được {len(orders_info)} đơn hàng trong {filename}:")
+            for order in orders_info:
+                log_info(f"  - Trang {order['page']}: {order['order_sn']} | {order['shop_name']} | {order['delivery_method']}")
+        else:
+            log_warning(f"Không tìm thấy đơn hàng nào trong {filename}")
+    except Exception as e:
+        log_error("scan_pdf_for_orders", e, {"filename": filename})
+        # Vẫn tiếp tục in dù quét lỗi
+
     # Gọi hàm in từ core/printing.py
     try:
         sys.path.insert(0, str(BASE_DIR / "core"))
@@ -259,9 +275,10 @@ def api_print():
                 break
 
         if success:
-            log_info(f"In thành công: {filename} → {printer or 'Default'} x{copies}")
-            job = add_job(filename, printer or "Default", "success", f"{copies} bản in")
-            return jsonify({"ok": True, "job": job})
+            orders_summary = f"{len(orders_info)} đơn hàng" if orders_info else "Không xác định đơn hàng"
+            log_info(f"In thành công: {filename} → {printer or 'Default'} x{copies} ({orders_summary})")
+            job = add_job(filename, printer or "Default", "success", f"{copies} bản in - {orders_summary}")
+            return jsonify({"ok": True, "job": job, "orders": orders_info})
         else:
             msg = (
                 "Gửi lệnh in thất bại. "
