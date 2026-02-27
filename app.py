@@ -255,17 +255,22 @@ def api_print():
             orders_info = df_orders.to_dict('records')
             log_dir = BASE_DIR / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            # write append to json file
-            with open(log_dir / "orders_log.json", "a", encoding="utf-8") as f:
+            import csv
+            csv_path = log_dir / "orders_log.csv"
+            write_header = not csv_path.exists()
+            with open(csv_path, "a", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=["time", "filename", "order_sn", "shop_name", "delivery_method"])
+                if write_header:
+                    writer.writeheader()
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 for order in orders_info:
-                    log_entry = {
-                        "filename": filename,
-                        "order_sn": order.get("order_sn"),
-                        "shop_name": order.get("shop_name"),
+                    writer.writerow({
+                        "time":            now,
+                        "filename":        filename,
+                        "order_sn":        order.get("order_sn"),
+                        "shop_name":       order.get("shop_name"),
                         "delivery_method": order.get("delivery_method"),
-                        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    }
-                    f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+                    })
         else:
             log_warning(f"Không tìm thấy đơn hàng nào trong {filename}")
     except Exception as e:
