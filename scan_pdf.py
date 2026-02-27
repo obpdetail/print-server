@@ -117,3 +117,8 @@ def scan_pdf_for_orders(merged_pdf_path):
                     "delivery_method": delivery_method
                 })
     return pd.DataFrame(rows)
+
+if __name__ == "__main__":
+    merged_pdf_path = r"C:\Users\Desk Top\Dropbox\OBP\Code\OBP-GetData\OUTPUT_PDF\reordered_pdf_20260227_150339.pdf"  # Đường dẫn tới file PDF đã gộp
+    df_orders = scan_pdf_for_orders(merged_pdf_path)
+    print(df_orders)
