@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Index, Integer, String, Text, create_engine, text
+    Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, create_engine, text
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -58,6 +58,33 @@ class UploadedFile(Base):
     file_size_kb    = Column(Integer, nullable=True)
     created_date    = Column(DateTime, nullable=False, default=_utcnow)
     updated_date    = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+
+class FileOrder(Base):
+    """
+    Catalog đơn hàng quét được trong mỗi file PDF khi upload.
+    Lưu TẤT CẢ đơn hàng kể cả chưa in.
+    Đây là nguồn chân lý cho 'đơn trong file'.
+    """
+    __tablename__ = "file_orders"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    uploaded_file_id    = Column(Integer, ForeignKey("uploaded_files.id", ondelete="CASCADE"),
+                                 nullable=True, index=True)
+    filename            = Column(String(255), nullable=False, index=True)
+    # ^ tên file trên disk (khớp với uploaded_files.filename)
+    order_sn            = Column(String(100), nullable=False)
+    shop_name           = Column(String(255), nullable=True)
+    platform            = Column(String(50),  nullable=True)
+    delivery_method     = Column(String(50),  nullable=True)
+    delivery_method_raw = Column(String(100), nullable=True)
+    page_number         = Column(Integer, nullable=True)
+    created_date        = Column(DateTime, nullable=False, default=_utcnow)
+    updated_date        = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        Index("ix_file_orders_order_sn", "order_sn"),
+    )
 
 
 class PrintJob(Base):
