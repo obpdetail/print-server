@@ -359,10 +359,21 @@ def api_print_check():
         # Ưu tiên dùng file_orders (đã scan lúc upload); fallback re-scan nếu file cũ
         with get_session() as db:
             file_order_rows = db.query(FileOrder).filter(FileOrder.filename == filename).all()
+            # Chuyển sang dict ngay trong session để tránh detached instance error
+            file_order_dicts = [
+                {
+                    "order_sn":        fo.order_sn,
+                    "shop_name":       fo.shop_name,
+                    "platform":        fo.platform,
+                    "delivery_method": fo.delivery_method,
+                    "page_number":     fo.page_number,
+                }
+                for fo in file_order_rows
+            ]
 
-        if file_order_rows:
-            order_sns = [fo.order_sn for fo in file_order_rows]
-            fo_map    = {fo.order_sn: fo for fo in file_order_rows}
+        if file_order_dicts:
+            order_sns = [fo["order_sn"] for fo in file_order_dicts]
+            fo_map    = {fo["order_sn"]: fo for fo in file_order_dicts}
         else:
             # Backward compat: file upload trước khi có feature này
             df_orders = scan_pdf_for_orders(str(filepath))
@@ -384,7 +395,7 @@ def api_print_check():
                     for sn, fo in fo_map.items():
                         op = existing_map.get(sn)
                         if op:
-                            page = fo.page_number if hasattr(fo, "page_number") else fo.get("page")
+                            page = fo.get("page_number") if isinstance(fo, dict) else fo.get("page")
                             result["order_warnings"].append({
                                 "order_sn":        op.order_sn,
                                 "shop_name":       op.shop_name,
@@ -577,6 +588,7 @@ def api_files_history():
             # Đếm số đơn hàng theo filename (1 query)
             fnames = [r.filename for r in rows]
             order_counts: dict = {}
+            print_stats: dict = {}
             if fnames:
                 cnt_rows = (
                     db.query(FileOrder.filename, func.count(FileOrder.id))
@@ -585,6 +597,37 @@ def api_files_history():
                     .all()
                 )
                 order_counts = {fn: cnt for fn, cnt in cnt_rows}
+
+                # Thống kê lệnh in theo filename
+                pj_rows = (
+                    db.query(
+                        PrintJob.filename,
+                        func.count(PrintJob.id).label("print_count"),
+                        func.max(PrintJob.print_time_utc).label("last_print_time"),
+                    )
+                    .filter(PrintJob.filename.in_(fnames))
+                    .group_by(PrintJob.filename)
+                    .all()
+                )
+                # Lấy printer + status của lần in cuối cùng
+                last_job_map: dict = {}
+                if pj_rows:
+                    last_times = {fn: lt for fn, _, lt in pj_rows if lt}
+                    for fn, lt in last_times.items():
+                        lj = (
+                            db.query(PrintJob.printer_name, PrintJob.status)
+                            .filter(PrintJob.filename == fn, PrintJob.print_time_utc == lt)
+                            .first()
+                        )
+                        if lj:
+                            last_job_map[fn] = {"printer": lj.printer_name, "status": lj.status}
+                for fn, pc, lt in pj_rows:
+                    print_stats[fn] = {
+                        "print_count":     pc,
+                        "last_print_time": lt.strftime("%Y-%m-%d %H:%M:%S") if lt else None,
+                        "last_printer":    last_job_map.get(fn, {}).get("printer"),
+                        "last_status":     last_job_map.get(fn, {}).get("status"),
+                    }
             files = [
                 {
                     "id":            r.id,
@@ -594,6 +637,10 @@ def api_files_history():
                     "upload_ip":     r.upload_ip,
                     "file_size_kb":  r.file_size_kb,
                     "order_count":   order_counts.get(r.filename, 0),
+                    **print_stats.get(r.filename, {
+                        "print_count": 0, "last_print_time": None,
+                        "last_printer": None, "last_status": None,
+                    }),
                 }
                 for r in rows
             ]
