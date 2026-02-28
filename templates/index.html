@@ -509,9 +509,9 @@
     <div class="dt-wrap" id="uploads-table-wrap">
       <table class="data-table">
         <thead><tr>
-          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>ID</th>
+          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>ID</th><th></th>
         </tr></thead>
-        <tbody id="up-tbody"><tr><td colspan="6" class="dt-empty">Đang tải…</td></tr></tbody>
+        <tbody id="up-tbody"><tr><td colspan="7" class="dt-empty">Đang tải…</td></tr></tbody>
       </table>
     </div>
     <div class="dt-pagination" id="up-pg"></div>
@@ -1043,7 +1043,7 @@ async function loadUploadsTable(page) {
   if (q)  params.set('q',  q);
   if (ip) params.set('ip', ip);
   const tbody = document.getElementById('up-tbody');
-  tbody.innerHTML = '<tr><td colspan="6" class="dt-loading">Đang tải…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="dt-loading">Đang tải…</td></tr>';
   try {
     const r = await fetch(`/api/files/history?${params}`);
     const d = await r.json();
@@ -1051,7 +1051,7 @@ async function loadUploadsTable(page) {
     const totalPages = Math.ceil(d.total / per_page) || 1;
     document.getElementById('up-count').textContent = `${d.total} bản ghi`;
     if (!d.files.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="dt-empty">Không có dữ liệu.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="dt-empty">Không có dữ liệu.</td></tr>';
     } else {
       tbody.innerHTML = d.files.map(f => `
         <tr>
@@ -1061,11 +1061,12 @@ async function loadUploadsTable(page) {
           <td>${f.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${f.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
           <td class="monospace">${escHtml(f.upload_time || '—')}</td>
           <td>${f.id}</td>
+          <td><button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.original_name || f.filename)}')">🖨️ In</button></td>
         </tr>`).join('');
     }
     renderPagination('up-pg', page, totalPages, 'loadUploadsTable');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -1226,6 +1227,18 @@ async function deleteAlias(printer) {
     loadAliasSettings();
   }
 }
+/* ── Print from uploads history table ────────────────────── */
+async function printFileFromHistory(filename) {
+  selectedFile = filename;
+  document.getElementById('selected-label').textContent = filename;
+  document.getElementById('print-btn').disabled = false;
+  // Highlight in file list if present
+  document.querySelectorAll('.file-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.name === filename);
+  });
+  await printSelected();
+}
+
 /* ── Init ─────────────────────────────────────────────────── */
 (async () => {
   await Promise.allSettled([loadServerInfo(), loadPrinters(), refreshFiles(), loadAliasSettings()]);
