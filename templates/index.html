@@ -230,6 +230,110 @@
     .alias-actions { display: flex; gap: 6px; }
 
     .full-col { grid-column: 1 / -1; }
+
+    /* ── Upload Warning Banner ────────────────────────────────── */
+    #upload-warning-banner {
+      display: none; margin-top: 14px;
+      background: rgba(251,191,36,.1);
+      border: 1px solid rgba(251,191,36,.4);
+      border-left: 4px solid var(--yellow);
+      border-radius: var(--radius);
+      padding: 12px 16px; font-size: .83rem;
+    }
+    #upload-warning-banner .warn-title {
+      font-weight: 700; color: var(--yellow); margin-bottom: 6px;
+    }
+    #upload-warning-banner .warn-detail {
+      color: var(--muted); font-size: .78rem; line-height: 1.8;
+    }
+    .warn-toggle { cursor: pointer; color: var(--accent); font-size: .78rem; margin-top: 4px; display: inline-block; }
+    #upload-warning-list { display: none; margin-top: 8px; }
+
+    /* ── Reprint Modal ───────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 16px;
+    }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      width: 100%; max-width: 720px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-header {
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--yellow); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .modal-warn-block {
+      background: rgba(251,191,36,.08);
+      border: 1px solid rgba(251,191,36,.3);
+      border-radius: 8px; padding: 10px 14px;
+      font-size: .85rem; margin-bottom: 14px; line-height: 1.7;
+    }
+    .modal-section-title {
+      font-size: .82rem; font-weight: 700;
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: .07em; margin-bottom: 8px;
+    }
+    .table-wrap { overflow-x: auto; margin-bottom: 16px; }
+    .warn-table {
+      width: 100%; border-collapse: collapse;
+      font-size: .81rem;
+    }
+    .warn-table th {
+      text-align: left; color: var(--muted); font-weight: 700;
+      padding: 6px 10px; border-bottom: 1px solid var(--border);
+      font-size: .72rem; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .warn-table td {
+      padding: 7px 10px; border-bottom: 1px solid rgba(46,51,80,.5);
+      vertical-align: middle;
+    }
+    .warn-table tr:last-child td { border-bottom: none; }
+    .warn-table tr:hover td { background: rgba(255,255,255,.02); }
+    .modal-reason {
+      margin: 16px 0 0;
+      background: var(--surface2); border-radius: 8px; padding: 14px;
+    }
+    .modal-reason label {
+      display: block; font-size: .82rem; font-weight: 600;
+      margin-bottom: 8px; color: var(--text);
+    }
+    .modal-reason input {
+      width: 100%; background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px;
+      padding: 10px 12px; font-size: .9rem;
+      outline: none; transition: border-color .2s;
+    }
+    .modal-reason input:focus { border-color: var(--accent); }
+    .modal-reason input.input-err { border-color: var(--red); }
+    .modal-actions {
+      display: flex; gap: 10px; margin-top: 16px;
+      justify-content: flex-end;
+    }
+    .btn-confirm {
+      background: var(--yellow); color: #111;
+      padding: 10px 22px; font-weight: 700;
+    }
+    .btn-confirm:hover { background: #f59e0b; }
+    .method-badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 99px; font-size: .72rem; font-weight: 700;
+      background: rgba(79,142,247,.15); color: var(--accent);
+    }
+    .platform-badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 99px; font-size: .72rem; font-weight: 700;
+    }
+    .platform-shopee { background: rgba(238,77,45,.15); color: #ee4d2d; }
+    .platform-tiktok { background: rgba(255,255,255,.08); color: #fff; }
+    .count-red { color: var(--red); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -262,6 +366,14 @@
         <div id="upload-progress">
           <p id="upload-msg" style="font-size:.82rem;color:var(--muted)"></p>
           <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+        </div>
+
+        <!-- Upload warning banner (Feature 6) -->
+        <div id="upload-warning-banner">
+          <div class="warn-title">⚠️ <span id="upload-warn-title-text"></span></div>
+          <div class="warn-detail" id="upload-warn-summary"></div>
+          <span class="warn-toggle" onclick="toggleUploadWarnList()">▼ Xem chi tiết</span>
+          <div id="upload-warning-list"></div>
         </div>
       </div>
 
@@ -319,6 +431,35 @@
       <div id="job-list"><div class="file-empty">Chưa có lệnh in nào.</div></div>
     </div>
 
+  </div>
+</div>
+
+<!-- Reprint Warning Modal (Feature 4 & 5) -->
+<div id="reprint-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">⚠️ Cảnh báo In Lại</div>
+
+    <!-- Cảnh báo file đã in -->
+    <div id="modal-file-warning" style="display:none"></div>
+
+    <!-- Bảng đơn trùng -->
+    <div id="modal-order-table" style="display:none"></div>
+
+    <!-- Lý do bắt buộc -->
+    <div class="modal-reason">
+      <label for="reprint-reason-input">
+        Lý do in lại <span style="color:var(--red)">*</span>
+      </label>
+      <input type="text" id="reprint-reason-input"
+             placeholder="Nhập lý do in lại..."
+             oninput="this.classList.remove('input-err')"
+             onkeydown="if(event.key==='Enter') confirmReprint()" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="closeReprintModal()">❌ Hủy</button>
+      <button class="btn btn-confirm" onclick="confirmReprint()">✅ Xác nhận In Lại</button>
+    </div>
   </div>
 </div>
 
@@ -386,8 +527,7 @@ async function refreshFiles() {
   }
 
   list.innerHTML = d.files.map(f => `
-    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}"
-         onclick="selectFile('${f.name}')" data-name="${f.name}">
+    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}" data-name="${f.name}">
       <div class="file-icon">📄</div>
       <div class="file-info">
         <div class="file-name">${f.name}</div>
@@ -464,8 +604,10 @@ async function uploadFiles(files) {
 
   progressWrap.style.display = 'block';
   progressBar.style.width    = '0%';
+  document.getElementById('upload-warning-banner').style.display = 'none';
 
   let done = 0;
+  let allWarnings = [];
   for (const file of files) {
     uploadMsg.textContent = `Đang tải: ${file.name} (${done + 1}/${files.length})`;
     const fd = new FormData();
@@ -477,6 +619,10 @@ async function uploadFiles(files) {
       if (!d.ok) throw new Error(d.error);
       done++;
       progressBar.style.width = `${Math.round(done / files.length * 100)}%`;
+      // Thu thập cảnh báo upload
+      if (d.upload_warnings && d.upload_warnings.length > 0) {
+        allWarnings.push({ filename: d.filename, warnings: d.upload_warnings });
+      }
     } catch (e) {
       toast(`Lỗi upload ${file.name}: ${e.message}`, 'err');
     }
@@ -485,10 +631,61 @@ async function uploadFiles(files) {
   uploadMsg.textContent = `✅ Đã tải lên ${done}/${files.length} file.`;
   setTimeout(() => { progressWrap.style.display = 'none'; fileInput.value = ''; }, 2000);
   toast(`Upload thành công ${done} file!`, 'ok');
+  if (allWarnings.length > 0) showUploadWarnings(allWarnings);
   refreshFiles();
 }
 
-/* ── Print ────────────────────────────────────────────────── */
+function showUploadWarnings(warningsList) {
+  let totalDups = 0;
+  warningsList.forEach(w => totalDups += w.warnings.length);
+
+  document.getElementById('upload-warn-title-text').textContent =
+    `${totalDups} đơn hàng trong file vừa upload đã được in trước đó`;
+  document.getElementById('upload-warn-summary').textContent =
+    warningsList.map(w => `• ${w.filename}: ${w.warnings.length} đơn`).join('  ');
+
+  // Build chi tiết
+  let rows = '';
+  for (const wf of warningsList) {
+    for (const o of wf.warnings) {
+      const platCls = o.platform === 'shopee' ? 'platform-shopee' : o.platform === 'tiktok' ? 'platform-tiktok' : '';
+      rows += `
+        <tr>
+          <td>${o.order_sn}</td>
+          <td>${o.shop_name || '-'}</td>
+          <td><span class="platform-badge ${platCls}">${o.platform || '-'}</span></td>
+          <td><span class="method-badge">${o.delivery_method || '-'}</span></td>
+          <td class="count-red">${o.print_count}</td>
+          <td>${o.last_print_time || '-'}</td>
+        </tr>`;
+    }
+  }
+  document.getElementById('upload-warning-list').innerHTML = `
+    <div class="table-wrap" style="margin-top:8px">
+      <table class="warn-table">
+        <thead><tr>
+          <th>Mã đơn</th><th>Shop</th><th>Nền tảng</th>
+          <th>ĐVVC</th><th>Số lần in</th><th>Lần in cuối</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('upload-warning-list').style.display = 'none';
+  document.getElementById('upload-warning-banner').style.display = 'block';
+}
+
+function toggleUploadWarnList() {
+  const el  = document.getElementById('upload-warning-list');
+  const tog = document.querySelector('.warn-toggle');
+  const shown = el.style.display !== 'none';
+  el.style.display  = shown ? 'none' : 'block';
+  tog.textContent   = shown ? '▼ Xem chi tiết' : '▲ Ẩn chi tiết';
+}
+
+/* ── Print (2-step: check → modal or direct) ──────────────── */
+let _pendingPrint = null;   // { printer, copies } khi đang chờ nhập lý do
+
 async function printSelected() {
   if (!selectedFile) { toast('Vui lòng chọn file cần in.', 'err'); return; }
 
@@ -496,27 +693,139 @@ async function printSelected() {
   const copies  = parseInt(document.getElementById('copies').value) || 1;
   const btn     = document.getElementById('print-btn');
 
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Đang gửi lệnh in...';
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Đang kiểm tra...';
 
+  try {
+    // Bước 1: kiểm tra cảnh báo
+    const chkRes  = await fetch('/api/print/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: selectedFile }),
+    });
+    const chkData = await chkRes.json();
+
+    if (!chkData.ok) { toast(`❌ ${chkData.error}`, 'err'); return; }
+
+    if (chkData.has_warnings) {
+      showReprintModal(chkData, printer, copies);
+      return;   // dừng — đợi người dùng xác nhận trong modal
+    }
+
+    // Không có cảnh báo → in luôn
+    await doPrint(selectedFile, printer, copies, false, '');
+
+  } catch (e) {
+    toast(`❌ Lỗi kết nối: ${e.message}`, 'err');
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = '🖨️ In ngay';
+  }
+}
+
+function showReprintModal(chkData, printer, copies) {
+  _pendingPrint = { printer, copies };
+
+  // ─ Cảnh báo file đã in ────────────────────────────────────────────────────
+  const fileWarnEl = document.getElementById('modal-file-warning');
+  if (chkData.file_warnings) {
+    const fw = chkData.file_warnings;
+    fileWarnEl.style.display = 'block';
+    fileWarnEl.innerHTML = `
+      <div class="modal-warn-block">
+        📄 File <strong>${escHtml(selectedFile)}</strong>
+        đã được in <span class="count-red">${fw.print_count} lần</span>
+        ${fw.last_print_time ? `&nbsp;·&nbsp; Lần cuối: <strong>${fw.last_print_time} UTC</strong>` : ''}
+        ${fw.last_printer   ? `&nbsp;·&nbsp; Máy: <em>${escHtml(fw.last_printer)}</em>` : ''}
+      </div>`;
+  } else {
+    fileWarnEl.style.display = 'none';
+  }
+
+  // ─ Bảng các đơn trùng ─────────────────────────────────────────────────────
+  const orderTableEl = document.getElementById('modal-order-table');
+  const ows = chkData.order_warnings || [];
+  if (ows.length > 0) {
+    orderTableEl.style.display = 'block';
+    const rows = ows.map(o => {
+      const platCls = o.platform === 'shopee' ? 'platform-shopee'
+                    : o.platform === 'tiktok' ? 'platform-tiktok' : '';
+      return `<tr>
+        <td>${escHtml(o.order_sn)}</td>
+        <td>${escHtml(o.shop_name || '-')}</td>
+        <td><span class="platform-badge ${platCls}">${o.platform || '-'}</span></td>
+        <td><span class="method-badge">${o.delivery_method || '-'}</span></td>
+        <td>${o.page_number ?? '-'}</td>
+        <td class="count-red">${o.print_count}</td>
+        <td>${o.last_print_time || '-'}</td>
+      </tr>`;
+    }).join('');
+    orderTableEl.innerHTML = `
+      <div class="modal-section-title">📦 ${ows.length} đơn hàng trong file này đã được in trước đó:</div>
+      <div class="table-wrap">
+        <table class="warn-table">
+          <thead><tr>
+            <th>Mã đơn</th><th>Shop</th><th>Nền tảng</th>
+            <th>ĐVVC</th><th>Trang</th><th>Số lần in</th><th>Lần in cuối</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } else {
+    orderTableEl.style.display = 'none';
+  }
+
+  // Reset input lý do
+  const inp = document.getElementById('reprint-reason-input');
+  inp.value = '';
+  inp.classList.remove('input-err');
+
+  document.getElementById('reprint-modal').style.display = 'flex';
+  setTimeout(() => inp.focus(), 100);
+}
+
+function closeReprintModal() {
+  document.getElementById('reprint-modal').style.display = 'none';
+  _pendingPrint = null;
+}
+
+async function confirmReprint() {
+  const inp    = document.getElementById('reprint-reason-input');
+  const reason = inp.value.trim();
+  if (!reason) {
+    inp.classList.add('input-err');
+    inp.focus();
+    toast('Vui lòng nhập lý do in lại!', 'err');
+    return;
+  }
+  closeReprintModal();
+  const { printer, copies } = _pendingPrint;
+  await doPrint(selectedFile, printer, copies, true, reason);
+}
+
+async function doPrint(filename, printer, copies, is_reprint, reprint_reason) {
+  const btn = document.getElementById('print-btn');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Đang gửi lệnh in...';
   try {
     const r = await fetch('/api/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: selectedFile, printer, copies }),
+      body: JSON.stringify({ filename, printer, copies, is_reprint, reprint_reason }),
     });
     const d = await r.json();
-
     if (d.ok) {
-      toast(`✅ Đã gửi lệnh in: ${selectedFile}`, 'ok');
+      toast(`✅ Đã gửi lệnh in: ${filename}${is_reprint ? ' (in lại)' : ''}`, 'ok');
       refreshJobs();
+    } else if (d.requires_reprint_reason) {
+      toast(`⚠️ ${d.error}`, 'err');
     } else {
       toast(`❌ ${d.error}`, 'err');
     }
   } catch (e) {
     toast(`❌ Lỗi kết nối: ${e.message}`, 'err');
   } finally {
-    btn.disabled = false;
+    btn.disabled  = false;
     btn.innerHTML = '🖨️ In ngay';
   }
 }
