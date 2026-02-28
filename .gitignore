@@ -39,3 +39,6 @@ desktop.ini
 *.env
 .env
 config.local.py
+
+
+test-files/

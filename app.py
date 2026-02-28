@@ -456,8 +456,8 @@ def api_print():
     try:
         with get_session() as db:
             file_order_rows = db.query(FileOrder).filter(FileOrder.filename == filename).all()
-        if file_order_rows:
-            orders_info = [
+            # Chuyển sang dict ngay trong session để tránh detached instance error
+            file_order_dicts = [
                 {
                     "order_sn":            fo.order_sn,
                     "shop_name":           fo.shop_name,
@@ -468,6 +468,8 @@ def api_print():
                 }
                 for fo in file_order_rows
             ]
+        if file_order_dicts:
+            orders_info = file_order_dicts
         else:
             # Backward compat: file upload trước khi có feature này
             df_orders = scan_pdf_for_orders(str(filepath))
