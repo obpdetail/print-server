@@ -491,13 +491,13 @@
   <!-- ══ Bảng File đã upload (DB) ═══════════════════════════════════════ -->
   <div class="card" style="margin-top:20px" id="card-uploads">
     <div class="card-title" style="justify-content:space-between">
-      <span>📂 File đã upload <span class="count-badge" id="uploads-total-badge">…</span></span>
+      <span>📂 File đã upload <span class="count-badge" id="up-count">…</span></span>
       <button class="btn btn-danger" onclick="loadUploadsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
     </div>
     <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="uploads-q"
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="up-q"
              placeholder="🔍 Tên file…" oninput="debouncedSearch('uploads')" />
-      <input class="dt-search-input" style="flex:1;min-width:110px" type="text" id="uploads-ip"
+      <input class="dt-search-input" style="flex:1;min-width:110px" type="text" id="up-ip"
              placeholder="IP upload…" oninput="debouncedSearch('uploads')" />
       <button class="btn btn-save" onclick="loadUploadsTable(1)">Tìm</button>
       <select class="dt-search-input" style="width:auto" id="uploads-per-page" onchange="loadUploadsTable(1)">
@@ -506,29 +506,36 @@
         <option value="100">100 / trang</option>
       </select>
     </div>
-    <div class="dt-wrap" id="uploads-table-wrap"><div class="dt-empty">Đang tải…</div></div>
-    <div class="dt-pagination" id="uploads-pagination"></div>
+    <div class="dt-wrap" id="uploads-table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>ID</th>
+        </tr></thead>
+        <tbody id="up-tbody"><tr><td colspan="6" class="dt-empty">Đang tải…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="dt-pagination" id="up-pg"></div>
   </div>
 
   <!-- ══ Bảng Lịch sử in (DB) ════════════════════════════════════════════ -->
   <div class="card" style="margin-top:20px" id="card-prints">
     <div class="card-title" style="justify-content:space-between">
-      <span>🖨️ Lịch sử in <span class="count-badge" id="prints-total-badge">…</span></span>
+      <span>🖨️ Lịch sử in <span class="count-badge" id="pr-count">…</span></span>
       <button class="btn btn-danger" onclick="loadPrintsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
     </div>
     <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="prints-q"
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="pr-q"
              placeholder="🔍 Tên file…" oninput="debouncedSearch('prints')" />
-      <input class="dt-search-input" style="flex:1;min-width:120px" type="text" id="prints-printer"
+      <input class="dt-search-input" style="flex:1;min-width:120px" type="text" id="pr-printer"
              placeholder="Máy in…" oninput="debouncedSearch('prints')" />
-      <input class="dt-search-input" style="flex:1;min-width:100px" type="text" id="prints-ip"
+      <input class="dt-search-input" style="flex:1;min-width:100px" type="text" id="pr-ip"
              placeholder="IP…" oninput="debouncedSearch('prints')" />
-      <select class="dt-search-input" style="width:auto" id="prints-status" onchange="loadPrintsTable(1)">
+      <select class="dt-search-input" style="width:auto" id="pr-status" onchange="loadPrintsTable(1)">
         <option value="">Tất cả TT</option>
         <option value="success">Thành công</option>
         <option value="error">Lỗi</option>
       </select>
-      <select class="dt-search-input" style="width:auto" id="prints-is-reprint" onchange="loadPrintsTable(1)">
+      <select class="dt-search-input" style="width:auto" id="pr-reprint" onchange="loadPrintsTable(1)">
         <option value="">Tất cả loại</option>
         <option value="1">In lại</option>
         <option value="0">In mới</option>
@@ -539,28 +546,35 @@
         <option value="100">100 / trang</option>
       </select>
     </div>
-    <div class="dt-wrap" id="prints-table-wrap"><div class="dt-empty">Đang tải…</div></div>
-    <div class="dt-pagination" id="prints-pagination"></div>
+    <div class="dt-wrap" id="prints-table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>Tên file</th><th>Máy in</th><th>IP</th><th>Bản</th><th>Loại</th><th>Đơn hàng</th><th>Trạng thái</th><th>Thời gian</th><th>ID</th>
+        </tr></thead>
+        <tbody id="pr-tbody"><tr><td colspan="9" class="dt-empty">Đang tải…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="dt-pagination" id="pr-pg"></div>
   </div>
 
   <!-- ══ Bảng Đơn hàng đã in (DB) ════════════════════════════════════════ -->
   <div class="card" style="margin-top:20px" id="card-orders">
     <div class="card-title" style="justify-content:space-between">
-      <span>📦 Đơn hàng đã in <span class="count-badge" id="orders-total-badge">…</span></span>
+      <span>📦 Đơn hàng đã in <span class="count-badge" id="or-count">…</span></span>
       <button class="btn btn-danger" onclick="loadOrdersTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
     </div>
     <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="orders-order-sn"
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="or-sn"
              placeholder="🔍 Mã đơn hàng…" oninput="debouncedSearch('orders')" />
-      <input class="dt-search-input" style="flex:2;min-width:140px" type="text" id="orders-shop-name"
+      <input class="dt-search-input" style="flex:2;min-width:140px" type="text" id="or-shop"
              placeholder="Tên shop…" oninput="debouncedSearch('orders')" />
-      <select class="dt-search-input" style="width:auto" id="orders-platform" onchange="loadOrdersTable(1)">
+      <select class="dt-search-input" style="width:auto" id="or-platform" onchange="loadOrdersTable(1)">
         <option value="">Tất cả nền tảng</option>
         <option value="shopee">Shopee</option>
         <option value="tiktok">TikTok</option>
         <option value="lazada">Lazada</option>
       </select>
-      <select class="dt-search-input" style="width:auto" id="orders-delivery" onchange="loadOrdersTable(1)">
+      <select class="dt-search-input" style="width:auto" id="or-method" onchange="loadOrdersTable(1)">
         <option value="">ĐVVC tất cả</option>
         <option value="SPX">SPX</option>
         <option value="GHN">GHN</option>
@@ -573,8 +587,15 @@
         <option value="200">200 / trang</option>
       </select>
     </div>
-    <div class="dt-wrap" id="orders-table-wrap"><div class="dt-empty">Đang tải…</div></div>
-    <div class="dt-pagination" id="orders-pagination"></div>
+    <div class="dt-wrap" id="orders-table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>Mã đơn</th><th>Shop</th><th>Nền tảng</th><th>ĐVVC</th><th>Số lần in</th><th>File</th><th>Lần in cuối</th><th>ID</th>
+        </tr></thead>
+        <tbody id="or-tbody"><tr><td colspan="8" class="dt-empty">Đang tải…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="dt-pagination" id="or-pg"></div>
   </div>
 
 </div><!-- /.container -->
@@ -1005,7 +1026,7 @@ function renderPagination(containerId, page, totalPages, fnName) {
   el.innerHTML = pages.map(p =>
     p === '…'
       ? `<span class="pg-btn pg-ellipsis">…</span>`
-      : `<button class="pg-btn${p === page ? ' active' : ''}" onclick="${fnName}(${p})">${p}</button>`
+      : `<button class="pg-btn${p === page ? ' pg-active' : ''}" onclick="${fnName}(${p})">${p}</button>`
   ).join('');
 }
 
@@ -1017,32 +1038,34 @@ async function loadUploadsTable(page) {
   _tblState.uploads.page = page;
   const q  = document.getElementById('up-q').value.trim();
   const ip = document.getElementById('up-ip').value.trim();
-  const params = new URLSearchParams({ page, per_page: 20 });
+  const per_page = parseInt(document.getElementById('uploads-per-page').value) || 20;
+  const params = new URLSearchParams({ page, per_page });
   if (q)  params.set('q',  q);
   if (ip) params.set('ip', ip);
   const tbody = document.getElementById('up-tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="dt-loading">Đang tải…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="dt-loading">Đang tải…</td></tr>';
   try {
     const r = await fetch(`/api/files/history?${params}`);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / 20) || 1;
+    const totalPages = Math.ceil(d.total / per_page) || 1;
     document.getElementById('up-count').textContent = `${d.total} bản ghi`;
     if (!d.files.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="dt-empty">Không có dữ liệu.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="dt-empty">Không có dữ liệu.</td></tr>';
     } else {
       tbody.innerHTML = d.files.map(f => `
         <tr>
           <td class="monospace">${escHtml(f.original_name || f.filename)}</td>
           <td class="monospace">${escHtml(f.upload_ip || '—')}</td>
           <td>${f.file_size_kb != null ? f.file_size_kb + ' KB' : '—'}</td>
+          <td>${f.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${f.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
           <td class="monospace">${escHtml(f.upload_time || '—')}</td>
           <td>${f.id}</td>
         </tr>`).join('');
     }
     renderPagination('up-pg', page, totalPages, 'loadUploadsTable');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -1054,22 +1077,23 @@ async function loadPrintsTable(page) {
   const ip        = document.getElementById('pr-ip').value.trim();
   const status    = document.getElementById('pr-status').value;
   const isReprint = document.getElementById('pr-reprint').value;
-  const params    = new URLSearchParams({ page, per_page: 20 });
+  const per_page  = parseInt(document.getElementById('prints-per-page').value) || 20;
+  const params    = new URLSearchParams({ page, per_page });
   if (q)         params.set('q',          q);
   if (printer)   params.set('printer',    printer);
   if (ip)        params.set('ip',         ip);
   if (status)    params.set('status',     status);
   if (isReprint) params.set('is_reprint', isReprint);
   const tbody = document.getElementById('pr-tbody');
-  tbody.innerHTML = '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
   try {
     const r = await fetch(`/api/print-history?${params}`);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / 20) || 1;
+    const totalPages = Math.ceil(d.total / per_page) || 1;
     document.getElementById('pr-count').textContent = `${d.total} bản ghi`;
     if (!d.jobs.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
     } else {
       tbody.innerHTML = d.jobs.map(j => `
         <tr>
@@ -1080,6 +1104,7 @@ async function loadPrintsTable(page) {
           <td>${j.is_reprint
             ? `<span class="reprint-tag">In lại</span>${j.reprint_reason ? '<br><small>' + escHtml(j.reprint_reason) + '</small>' : ''}`
             : '<span class="tag tag-ok">Lần đầu</span>'}</td>
+          <td>${j.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${j.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
           <td><span class="status-${j.status === 'success' ? 'ok' : 'err'}">${j.status === 'success' ? '✅ Thành công' : '❌ Lỗi'}</span></td>
           <td class="monospace">${escHtml(j.print_time || '—')}</td>
           <td>${j.id}</td>
@@ -1087,7 +1112,7 @@ async function loadPrintsTable(page) {
     }
     renderPagination('pr-pg', page, totalPages, 'loadPrintsTable');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -1098,7 +1123,8 @@ async function loadOrdersTable(page) {
   const shop     = document.getElementById('or-shop').value.trim();
   const platform = document.getElementById('or-platform').value;
   const method   = document.getElementById('or-method').value;
-  const params   = new URLSearchParams({ page, per_page: 20 });
+  const per_page = parseInt(document.getElementById('orders-per-page').value) || 50;
+  const params   = new URLSearchParams({ page, per_page });
   if (order_sn) params.set('order_sn',       order_sn);
   if (shop)     params.set('shop_name',       shop);
   if (platform) params.set('platform',        platform);
@@ -1109,7 +1135,7 @@ async function loadOrdersTable(page) {
     const r = await fetch(`/api/orders/history?${params}`);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / 20) || 1;
+    const totalPages = Math.ceil(d.total / per_page) || 1;
     document.getElementById('or-count').textContent = `${d.total} bản ghi`;
     if (!d.orders.length) {
       tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
@@ -1202,7 +1228,7 @@ async function deleteAlias(printer) {
 }
 /* ── Init ─────────────────────────────────────────────────── */
 (async () => {
-  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), loadAliasSettings()]);
+  await Promise.allSettled([loadServerInfo(), loadPrinters(), refreshFiles(), loadAliasSettings()]);
   loadUploadsTable(1);
   loadPrintsTable(1);
   loadOrdersTable(1);

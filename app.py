@@ -22,6 +22,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 from error_handler import log_error, log_info, log_warning
 from scan_pdf import scan_pdf_for_orders
+from sqlalchemy import func
 from database import init_db, get_session, UploadedFile, PrintJob, OrderPrint
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
@@ -521,6 +522,17 @@ def api_files_history():
                 .order_by(UploadedFile.upload_time_utc.desc())
                 .offset(offset).limit(per_page).all()
             )
+            # Đếm số đơn hàng theo filename (1 query)
+            fnames = [r.filename for r in rows]
+            order_counts: dict = {}
+            if fnames:
+                cnt_rows = (
+                    db.query(OrderPrint.filename, func.count(OrderPrint.id))
+                    .filter(OrderPrint.filename.in_(fnames))
+                    .group_by(OrderPrint.filename)
+                    .all()
+                )
+                order_counts = {fn: cnt for fn, cnt in cnt_rows}
             files = [
                 {
                     "id":            r.id,
@@ -529,6 +541,7 @@ def api_files_history():
                     "upload_time":   r.upload_time_utc.strftime("%Y-%m-%d %H:%M:%S") if r.upload_time_utc else None,
                     "upload_ip":     r.upload_ip,
                     "file_size_kb":  r.file_size_kb,
+                    "order_count":   order_counts.get(r.filename, 0),
                 }
                 for r in rows
             ]
@@ -569,6 +582,17 @@ def api_print_history():
                 .order_by(PrintJob.print_time_utc.desc())
                 .offset(offset).limit(per_page).all()
             )
+            # Đếm số đơn hàng theo filename (1 query)
+            fnames = [r.filename for r in rows]
+            order_counts: dict = {}
+            if fnames:
+                cnt_rows = (
+                    db.query(OrderPrint.filename, func.count(OrderPrint.id))
+                    .filter(OrderPrint.filename.in_(fnames))
+                    .group_by(OrderPrint.filename)
+                    .all()
+                )
+                order_counts = {fn: cnt for fn, cnt in cnt_rows}
             jobs = [
                 {
                     "id":             r.id,
@@ -580,6 +604,7 @@ def api_print_history():
                     "reprint_reason": r.reprint_reason,
                     "status":         r.status,
                     "print_time":     r.print_time_utc.strftime("%Y-%m-%d %H:%M:%S") if r.print_time_utc else None,
+                    "order_count":    order_counts.get(r.filename, 0),
                 }
                 for r in rows
             ]
