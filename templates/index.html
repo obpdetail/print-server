@@ -334,6 +334,70 @@
     .platform-shopee { background: rgba(238,77,45,.15); color: #ee4d2d; }
     .platform-tiktok { background: rgba(255,255,255,.08); color: #fff; }
     .count-red { color: var(--red); font-weight: 700; }
+
+    /* ── Data Tables ───────────────────────────────────────── */
+    .dt-search-row {
+      display: flex; gap: 8px; margin-bottom: 14px;
+      flex-wrap: wrap; align-items: center;
+    }
+    .dt-search-input {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 7px 12px;
+      font-size: .83rem; outline: none; transition: border-color .2s;
+    }
+    .dt-search-input:focus { border-color: var(--accent); }
+    .dt-wrap { overflow-x: auto; margin-bottom: 4px; }
+    .data-table {
+      width: 100%; border-collapse: collapse;
+      font-size: .82rem; min-width: 560px;
+    }
+    .data-table th {
+      text-align: left; color: var(--muted); font-weight: 700;
+      padding: 9px 12px; border-bottom: 2px solid var(--border);
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+      white-space: nowrap; background: var(--surface);
+      position: sticky; top: 0; z-index: 1;
+    }
+    .data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(46,51,80,.5);
+      vertical-align: middle;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover td { background: rgba(79,142,247,.05); }
+    .dt-cell-sm   { max-width: 40px;  color: var(--muted); }
+    .dt-cell-file { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dt-cell-wrap { white-space: normal; word-break: break-word; max-width: 180px; }
+    .dt-cell-nowrap { white-space: nowrap; }
+    .monospace { font-family: 'Consolas', monospace; font-size: .78rem; color: var(--muted); }
+    .dt-empty   { color: var(--muted); font-size: .85rem; text-align: center; padding: 28px 0; }
+    /* Pagination */
+    .dt-pagination {
+      display: flex; align-items: center; gap: 4px;
+      margin-top: 12px; justify-content: flex-end;
+      font-size: .82rem; flex-wrap: wrap;
+    }
+    .dt-pagination .pg-info {
+      color: var(--muted); margin: 0 8px; font-size: .78rem; white-space: nowrap;
+    }
+    .pg-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 4px 10px;
+      font-size: .78rem; cursor: pointer; transition: background .15s;
+    }
+    .pg-btn:hover:not(:disabled) { background: var(--border); }
+    .pg-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .pg-btn.pg-active { background: var(--accent); border-color: var(--accent); color:#fff; }
+    /* Badges */
+    .count-badge {
+      display: inline-block; font-size: .7rem; font-weight: 600;
+      background: var(--surface2); color: var(--muted);
+      padding: 1px 8px; border-radius: 99px; margin-left: 4px;
+    }
+    .reprint-tag { background: rgba(251,191,36,.15); color: var(--yellow);
+      padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+    .status-ok   { color: var(--green); font-weight: 600; }
+    .status-err  { color: var(--red);   font-weight: 600; }
   </style>
 </head>
 <body>
@@ -407,10 +471,10 @@
 
     </div>
 
-    <!-- ── Cột phải: Danh sách file ── -->
+    <!-- ── Cột phải: Chọn file để in ── -->
     <div class="card">
       <div class="card-title" style="justify-content:space-between">
-        <span>📂 File đã upload</span>
+        <span>📂 Chọn file để in</span>
         <button class="btn btn-danger" onclick="refreshFiles()" style="padding:4px 12px;">↻ Làm mới</button>
       </div>
       <div id="file-list"><div class="file-empty">Chưa có file nào.</div></div>
@@ -422,17 +486,98 @@
       <iframe id="pdf-iframe" src=""></iframe>
     </div>
 
-    <!-- ── Lịch sử in (full width) ── -->
-    <div class="card full-col">
-      <div class="card-title" style="justify-content:space-between">
-        <span>📋 Lịch sử in</span>
-        <button class="btn btn-danger" onclick="refreshJobs()" style="padding:4px 12px;">↻ Làm mới</button>
-      </div>
-      <div id="job-list"><div class="file-empty">Chưa có lệnh in nào.</div></div>
-    </div>
+  </div><!-- /.grid -->
 
+  <!-- ══ Bảng File đã upload (DB) ═══════════════════════════════════════ -->
+  <div class="card" style="margin-top:20px" id="card-uploads">
+    <div class="card-title" style="justify-content:space-between">
+      <span>📂 File đã upload <span class="count-badge" id="uploads-total-badge">…</span></span>
+      <button class="btn btn-danger" onclick="loadUploadsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
+    </div>
+    <div class="dt-search-row">
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="uploads-q"
+             placeholder="🔍 Tên file…" oninput="debouncedSearch('uploads')" />
+      <input class="dt-search-input" style="flex:1;min-width:110px" type="text" id="uploads-ip"
+             placeholder="IP upload…" oninput="debouncedSearch('uploads')" />
+      <button class="btn btn-save" onclick="loadUploadsTable(1)">Tìm</button>
+      <select class="dt-search-input" style="width:auto" id="uploads-per-page" onchange="loadUploadsTable(1)">
+        <option value="20">20 / trang</option>
+        <option value="50">50 / trang</option>
+        <option value="100">100 / trang</option>
+      </select>
+    </div>
+    <div class="dt-wrap" id="uploads-table-wrap"><div class="dt-empty">Đang tải…</div></div>
+    <div class="dt-pagination" id="uploads-pagination"></div>
   </div>
-</div>
+
+  <!-- ══ Bảng Lịch sử in (DB) ════════════════════════════════════════════ -->
+  <div class="card" style="margin-top:20px" id="card-prints">
+    <div class="card-title" style="justify-content:space-between">
+      <span>🖨️ Lịch sử in <span class="count-badge" id="prints-total-badge">…</span></span>
+      <button class="btn btn-danger" onclick="loadPrintsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
+    </div>
+    <div class="dt-search-row">
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="prints-q"
+             placeholder="🔍 Tên file…" oninput="debouncedSearch('prints')" />
+      <input class="dt-search-input" style="flex:1;min-width:120px" type="text" id="prints-printer"
+             placeholder="Máy in…" oninput="debouncedSearch('prints')" />
+      <input class="dt-search-input" style="flex:1;min-width:100px" type="text" id="prints-ip"
+             placeholder="IP…" oninput="debouncedSearch('prints')" />
+      <select class="dt-search-input" style="width:auto" id="prints-status" onchange="loadPrintsTable(1)">
+        <option value="">Tất cả TT</option>
+        <option value="success">Thành công</option>
+        <option value="error">Lỗi</option>
+      </select>
+      <select class="dt-search-input" style="width:auto" id="prints-is-reprint" onchange="loadPrintsTable(1)">
+        <option value="">Tất cả loại</option>
+        <option value="1">In lại</option>
+        <option value="0">In mới</option>
+      </select>
+      <select class="dt-search-input" style="width:auto" id="prints-per-page" onchange="loadPrintsTable(1)">
+        <option value="20">20 / trang</option>
+        <option value="50">50 / trang</option>
+        <option value="100">100 / trang</option>
+      </select>
+    </div>
+    <div class="dt-wrap" id="prints-table-wrap"><div class="dt-empty">Đang tải…</div></div>
+    <div class="dt-pagination" id="prints-pagination"></div>
+  </div>
+
+  <!-- ══ Bảng Đơn hàng đã in (DB) ════════════════════════════════════════ -->
+  <div class="card" style="margin-top:20px" id="card-orders">
+    <div class="card-title" style="justify-content:space-between">
+      <span>📦 Đơn hàng đã in <span class="count-badge" id="orders-total-badge">…</span></span>
+      <button class="btn btn-danger" onclick="loadOrdersTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
+    </div>
+    <div class="dt-search-row">
+      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="orders-order-sn"
+             placeholder="🔍 Mã đơn hàng…" oninput="debouncedSearch('orders')" />
+      <input class="dt-search-input" style="flex:2;min-width:140px" type="text" id="orders-shop-name"
+             placeholder="Tên shop…" oninput="debouncedSearch('orders')" />
+      <select class="dt-search-input" style="width:auto" id="orders-platform" onchange="loadOrdersTable(1)">
+        <option value="">Tất cả nền tảng</option>
+        <option value="shopee">Shopee</option>
+        <option value="tiktok">TikTok</option>
+        <option value="lazada">Lazada</option>
+      </select>
+      <select class="dt-search-input" style="width:auto" id="orders-delivery" onchange="loadOrdersTable(1)">
+        <option value="">ĐVVC tất cả</option>
+        <option value="SPX">SPX</option>
+        <option value="GHN">GHN</option>
+        <option value="JT">J&amp;T</option>
+        <option value="VTP">VTP</option>
+      </select>
+      <select class="dt-search-input" style="width:auto" id="orders-per-page" onchange="loadOrdersTable(1)">
+        <option value="50">50 / trang</option>
+        <option value="100">100 / trang</option>
+        <option value="200">200 / trang</option>
+      </select>
+    </div>
+    <div class="dt-wrap" id="orders-table-wrap"><div class="dt-empty">Đang tải…</div></div>
+    <div class="dt-pagination" id="orders-pagination"></div>
+  </div>
+
+</div><!-- /.container -->
 
 <!-- Reprint Warning Modal (Feature 4 & 5) -->
 <div id="reprint-modal" class="modal-overlay" style="display:none">
@@ -527,7 +672,7 @@ async function refreshFiles() {
   }
 
   list.innerHTML = d.files.map(f => `
-    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}" data-name="${f.name}">
+    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}" onclick="selectFile('${f.name}')" data-name="${f.name}">
       <div class="file-icon">📄</div>
       <div class="file-info">
         <div class="file-name">${f.name}</div>
@@ -554,7 +699,6 @@ function selectFile(name) {
   const iframe = document.getElementById('pdf-iframe');
   iframe.src = `/api/files/${encodeURIComponent(name)}`;
   wrap.style.display = 'block';
-  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function deleteFile(name) {
@@ -817,6 +961,8 @@ async function doPrint(filename, printer, copies, is_reprint, reprint_reason) {
     if (d.ok) {
       toast(`✅ Đã gửi lệnh in: ${filename}${is_reprint ? ' (in lại)' : ''}`, 'ok');
       refreshJobs();
+      loadPrintsTable();
+      loadOrdersTable();
     } else if (d.requires_reprint_reason) {
       toast(`⚠️ ${d.error}`, 'err');
     } else {
@@ -830,32 +976,160 @@ async function doPrint(filename, printer, copies, is_reprint, reprint_reason) {
   }
 }
 
-/* ── Jobs ─────────────────────────────────────────────────── */
-async function refreshJobs() {
-  const r = await fetch('/api/jobs');
-  const d = await r.json();
-  const list = document.getElementById('job-list');
+/* ── Jobs (backward compat) ───────────────────────────────── */
+function refreshJobs() { /* no-op: UI sử dụng các bảng DB */ }
 
-  if (!d.jobs.length) {
-    list.innerHTML = '<div class="file-empty">Chưa có lệnh in nào.</div>';
-    return;
+/* ── DB Table helpers ─────────────────────────────────────── */
+const _debounceTimers = {};
+function debouncedSearch(key) {
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(() => {
+    if      (key === 'uploads') loadUploadsTable(1);
+    else if (key === 'prints')  loadPrintsTable(1);
+    else if (key === 'orders')  loadOrdersTable(1);
+  }, 380);
+}
+
+function renderPagination(containerId, page, totalPages, fnName) {
+  const el = document.getElementById(containerId);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  const pages = [];
+  const w = 2;
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || (p >= page - w && p <= page + w)) {
+      pages.push(p);
+    } else if (pages[pages.length - 1] !== '…') {
+      pages.push('…');
+    }
   }
+  el.innerHTML = pages.map(p =>
+    p === '…'
+      ? `<span class="pg-btn pg-ellipsis">…</span>`
+      : `<button class="pg-btn${p === page ? ' active' : ''}" onclick="${fnName}(${p})">${p}</button>`
+  ).join('');
+}
 
-  list.innerHTML = d.jobs.map(j => `
-    <div class="job-item">
-      <div class="job-status">${j.status === 'success' ? '✅' : '❌'}</div>
-      <div class="job-info">
-        <div class="job-name">${j.filename}</div>
-        <div class="job-meta">
-          🖨 ${j.printer} &nbsp;·&nbsp; ${j.time}
-          ${j.message ? `&nbsp;·&nbsp; ${j.message}` : ''}
-        </div>
-      </div>
-      <span class="tag ${j.status === 'success' ? 'tag-ok' : 'tag-err'}">
-        ${j.status === 'success' ? 'Thành công' : 'Lỗi'}
-      </span>
-    </div>
-  `).join('');
+/* State cho từng bảng */
+const _tblState = { uploads: { page: 1 }, prints: { page: 1 }, orders: { page: 1 } };
+
+async function loadUploadsTable(page) {
+  page = page || _tblState.uploads.page;
+  _tblState.uploads.page = page;
+  const q  = document.getElementById('up-q').value.trim();
+  const ip = document.getElementById('up-ip').value.trim();
+  const params = new URLSearchParams({ page, per_page: 20 });
+  if (q)  params.set('q',  q);
+  if (ip) params.set('ip', ip);
+  const tbody = document.getElementById('up-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="dt-loading">Đang tải…</td></tr>';
+  try {
+    const r = await fetch(`/api/files/history?${params}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const totalPages = Math.ceil(d.total / 20) || 1;
+    document.getElementById('up-count').textContent = `${d.total} bản ghi`;
+    if (!d.files.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="dt-empty">Không có dữ liệu.</td></tr>';
+    } else {
+      tbody.innerHTML = d.files.map(f => `
+        <tr>
+          <td class="monospace">${escHtml(f.original_name || f.filename)}</td>
+          <td class="monospace">${escHtml(f.upload_ip || '—')}</td>
+          <td>${f.file_size_kb != null ? f.file_size_kb + ' KB' : '—'}</td>
+          <td class="monospace">${escHtml(f.upload_time || '—')}</td>
+          <td>${f.id}</td>
+        </tr>`).join('');
+    }
+    renderPagination('up-pg', page, totalPages, 'loadUploadsTable');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadPrintsTable(page) {
+  page = page || _tblState.prints.page;
+  _tblState.prints.page = page;
+  const q         = document.getElementById('pr-q').value.trim();
+  const printer   = document.getElementById('pr-printer').value.trim();
+  const ip        = document.getElementById('pr-ip').value.trim();
+  const status    = document.getElementById('pr-status').value;
+  const isReprint = document.getElementById('pr-reprint').value;
+  const params    = new URLSearchParams({ page, per_page: 20 });
+  if (q)         params.set('q',          q);
+  if (printer)   params.set('printer',    printer);
+  if (ip)        params.set('ip',         ip);
+  if (status)    params.set('status',     status);
+  if (isReprint) params.set('is_reprint', isReprint);
+  const tbody = document.getElementById('pr-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+  try {
+    const r = await fetch(`/api/print-history?${params}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const totalPages = Math.ceil(d.total / 20) || 1;
+    document.getElementById('pr-count').textContent = `${d.total} bản ghi`;
+    if (!d.jobs.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+    } else {
+      tbody.innerHTML = d.jobs.map(j => `
+        <tr>
+          <td class="monospace">${escHtml(j.filename)}</td>
+          <td>${escHtml(j.printer_name || '—')}</td>
+          <td class="monospace">${escHtml(j.client_ip || '—')}</td>
+          <td>${j.copies}</td>
+          <td>${j.is_reprint
+            ? `<span class="reprint-tag">In lại</span>${j.reprint_reason ? '<br><small>' + escHtml(j.reprint_reason) + '</small>' : ''}`
+            : '<span class="tag tag-ok">Lần đầu</span>'}</td>
+          <td><span class="status-${j.status === 'success' ? 'ok' : 'err'}">${j.status === 'success' ? '✅ Thành công' : '❌ Lỗi'}</span></td>
+          <td class="monospace">${escHtml(j.print_time || '—')}</td>
+          <td>${j.id}</td>
+        </tr>`).join('');
+    }
+    renderPagination('pr-pg', page, totalPages, 'loadPrintsTable');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadOrdersTable(page) {
+  page = page || _tblState.orders.page;
+  _tblState.orders.page = page;
+  const order_sn = document.getElementById('or-sn').value.trim();
+  const shop     = document.getElementById('or-shop').value.trim();
+  const platform = document.getElementById('or-platform').value;
+  const method   = document.getElementById('or-method').value;
+  const params   = new URLSearchParams({ page, per_page: 20 });
+  if (order_sn) params.set('order_sn',       order_sn);
+  if (shop)     params.set('shop_name',       shop);
+  if (platform) params.set('platform',        platform);
+  if (method)   params.set('delivery_method', method);
+  const tbody = document.getElementById('or-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+  try {
+    const r = await fetch(`/api/orders/history?${params}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const totalPages = Math.ceil(d.total / 20) || 1;
+    document.getElementById('or-count').textContent = `${d.total} bản ghi`;
+    if (!d.orders.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+    } else {
+      tbody.innerHTML = d.orders.map(o => `
+        <tr>
+          <td class="monospace">${escHtml(o.order_sn)}</td>
+          <td>${escHtml(o.shop_name || '—')}</td>
+          <td><span class="tag tag-platform">${escHtml(o.platform || '—')}</span></td>
+          <td>${escHtml(o.delivery_method || '—')}</td>
+          <td>${o.print_count > 1 ? `<span class="reprint-tag">×${o.print_count}</span>` : o.print_count}</td>
+          <td class="monospace">${escHtml(o.filename || '—')}</td>
+          <td class="monospace">${escHtml(o.last_print_time || '—')}</td>
+          <td>${o.id}</td>
+        </tr>`).join('');
+    }
+    renderPagination('or-pg', page, totalPages, 'loadOrdersTable');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+  }
 }
 /* ── Printer Aliases ────────────────────────────────────────── */
 function escHtml(str) {
@@ -928,11 +1202,14 @@ async function deleteAlias(printer) {
 }
 /* ── Init ─────────────────────────────────────────────────── */
 (async () => {
-  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), refreshJobs(), loadAliasSettings()]);
+  await Promise.all([loadServerInfo(), loadPrinters(), refreshFiles(), loadAliasSettings()]);
+  loadUploadsTable(1);
+  loadPrintsTable(1);
+  loadOrdersTable(1);
 })();
 
-// Tự động làm mới job mỗi 10 giây
-setInterval(refreshJobs, 10_000);
+// Tự động làm mới bảng mỗi 30 giây
+setInterval(() => { loadUploadsTable(); loadPrintsTable(); loadOrdersTable(); }, 30_000);
 </script>
 </body>
 </html>

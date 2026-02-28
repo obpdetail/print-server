@@ -506,11 +506,18 @@ def api_files_history():
     page     = max(1, int(request.args.get("page", 1)))
     per_page = min(100, int(request.args.get("per_page", 20)))
     offset   = (page - 1) * per_page
+    q        = request.args.get("q",  "").strip()
+    ip       = request.args.get("ip", "").strip()
     try:
         with get_session() as db:
-            total = db.query(UploadedFile).count()
+            qry = db.query(UploadedFile)
+            if q:
+                qry = qry.filter(UploadedFile.original_name.like(f"%{q}%"))
+            if ip:
+                qry = qry.filter(UploadedFile.upload_ip.like(f"%{ip}%"))
+            total = qry.count()
             rows  = (
-                db.query(UploadedFile)
+                qry
                 .order_by(UploadedFile.upload_time_utc.desc())
                 .offset(offset).limit(per_page).all()
             )
@@ -535,14 +542,30 @@ def api_files_history():
 
 @app.route("/api/print-history")
 def api_print_history():
-    page     = max(1, int(request.args.get("page", 1)))
-    per_page = min(100, int(request.args.get("per_page", 20)))
-    offset   = (page - 1) * per_page
+    page      = max(1, int(request.args.get("page", 1)))
+    per_page  = min(100, int(request.args.get("per_page", 20)))
+    offset    = (page - 1) * per_page
+    q         = request.args.get("q",          "").strip()
+    printer   = request.args.get("printer",    "").strip()
+    ip        = request.args.get("ip",         "").strip()
+    status    = request.args.get("status",     "").strip()
+    is_reprint= request.args.get("is_reprint", "").strip()
     try:
         with get_session() as db:
-            total = db.query(PrintJob).count()
+            qry = db.query(PrintJob)
+            if q:
+                qry = qry.filter(PrintJob.filename.like(f"%{q}%"))
+            if printer:
+                qry = qry.filter(PrintJob.printer_name.like(f"%{printer}%"))
+            if ip:
+                qry = qry.filter(PrintJob.client_ip.like(f"%{ip}%"))
+            if status:
+                qry = qry.filter(PrintJob.status == status)
+            if is_reprint in ("0", "1"):
+                qry = qry.filter(PrintJob.is_reprint == (is_reprint == "1"))
+            total = qry.count()
             rows  = (
-                db.query(PrintJob)
+                qry
                 .order_by(PrintJob.print_time_utc.desc())
                 .offset(offset).limit(per_page).all()
             )
@@ -570,17 +593,26 @@ def api_print_history():
 
 @app.route("/api/orders/history")
 def api_orders_history():
-    page     = max(1, int(request.args.get("page", 1)))
-    per_page = min(100, int(request.args.get("per_page", 50)))
-    order_sn = request.args.get("order_sn", "").strip()
-    offset   = (page - 1) * per_page
+    page            = max(1, int(request.args.get("page", 1)))
+    per_page        = min(100, int(request.args.get("per_page", 50)))
+    order_sn        = request.args.get("order_sn",        "").strip()
+    shop_name       = request.args.get("shop_name",       "").strip()
+    platform        = request.args.get("platform",        "").strip()
+    delivery_method = request.args.get("delivery_method", "").strip()
+    offset          = (page - 1) * per_page
     try:
         with get_session() as db:
-            q = db.query(OrderPrint)
+            qry = db.query(OrderPrint)
             if order_sn:
-                q = q.filter(OrderPrint.order_sn.like(f"%{order_sn}%"))
-            total = q.count()
-            rows  = q.order_by(OrderPrint.last_print_time_utc.desc()).offset(offset).limit(per_page).all()
+                qry = qry.filter(OrderPrint.order_sn.like(f"%{order_sn}%"))
+            if shop_name:
+                qry = qry.filter(OrderPrint.shop_name.like(f"%{shop_name}%"))
+            if platform:
+                qry = qry.filter(OrderPrint.platform == platform)
+            if delivery_method:
+                qry = qry.filter(OrderPrint.delivery_method == delivery_method)
+            total = qry.count()
+            rows  = qry.order_by(OrderPrint.last_print_time_utc.desc()).offset(offset).limit(per_page).all()
             orders = [
                 {
                     "id":              r.id,
