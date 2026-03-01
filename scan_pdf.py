@@ -147,6 +147,6 @@ def scan_pdf_for_orders(merged_pdf_path: str) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    merged_pdf_path = r"C:\Users\Desk Top\Dropbox\OBP\Code\OBP-GetData\OUTPUT_PDF\reordered_pdf_20260227_150339.pdf"
+    merged_pdf_path = "uploads/20260301_122437_02-28_23-09-21_Shipping label+Packing slip.pdf"
     df_orders = scan_pdf_for_orders(merged_pdf_path)
     print(df_orders)
