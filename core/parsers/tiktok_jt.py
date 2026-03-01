@@ -17,8 +17,10 @@ from .base import BaseParser, PageResult
 
 class TikTokJTParser(BaseParser):
 
-    _RE_PACKAGE  = re.compile(r"Package\s*ID\s*:\s*(\S+)",  re.IGNORECASE)
+    # Package ID đã bị loại bỏ khỏi hóa đơn hiện tại
+    # _RE_PACKAGE  = re.compile(r"Package\s*ID\s*:\s*(\S+)",  re.IGNORECASE)
     _RE_ORDER    = re.compile(r"Order\s*ID\s*:\s*(\S+)",     re.IGNORECASE)
+    _RE_ET       = re.compile(r"\bET\b")  # "ET" đứng một mình
     _RE_SHOP     = re.compile(
         r"Người\s+gửi\s*[\n\r\s]*([^\n\r]+?)"
         r"(?=\n|\r|Căn|Số|Phường|Xã|Quận|Huyện|Thành\s*phố|[0-9])",
@@ -26,7 +28,9 @@ class TikTokJTParser(BaseParser):
     )
 
     def can_handle(self, full_text: str, words: list) -> bool:
-        return bool(self._RE_PACKAGE.search(full_text))
+        has_jt = "J&T" in full_text or "J & T" in full_text
+        has_et = bool(self._RE_ET.search(full_text))
+        return has_jt and has_et
 
     def parse(
         self, page_number: int, full_text: str, words: list, page
