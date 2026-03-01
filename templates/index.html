@@ -1061,7 +1061,10 @@ async function loadUploadsTable(page) {
           <td class="monospace">${escHtml(f.upload_time || '—')}</td>
           <td>${printCell}</td>
           <td>${f.id}</td>
-          <td><button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.filename)}')">🖨️ In</button></td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.filename)}')">🖨️ In</button>
+            <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="downloadReport('${escHtml(f.filename)}')">📄 Báo cáo</button>
+          </td>
         </tr>`;
       }).join('');
     }
@@ -1229,6 +1232,37 @@ async function deleteAlias(printer) {
   }
 }
 /* ── Print from uploads history table ────────────────────── */
+async function downloadReport(filename) {
+  const btn = event.currentTarget;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tải…';
+  try {
+    const resp = await fetch(`/api/files/${encodeURIComponent(filename)}/report`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      alert('❌ Lỗi xuất báo cáo: ' + (err.error || resp.statusText));
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const cd   = resp.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']+)/i);
+    a.download = match ? decodeURIComponent(match[1]) : `Phieu_xuat_kho_${filename}.xlsx`;
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
 async function printFileFromHistory(filename) {
   selectedFile = filename;
   document.getElementById('selected-label').textContent = filename;

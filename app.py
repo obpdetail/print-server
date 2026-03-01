@@ -4,6 +4,7 @@ app.py  –  Print Server
 Chạy Flask trên 0.0.0.0 để các máy trong mạng LAN truy cập được.
 """
 
+import io
 import os
 import sys
 import uuid
@@ -11,9 +12,13 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import requests as _requests
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
 from flask import (
     Flask, request, jsonify, render_template,
-    send_from_directory, abort
+    send_from_directory, abort, send_file
 )
 
 # Thêm thư mục gốc vào sys.path để import core & error_handler
@@ -881,6 +886,241 @@ def api_orders_history():
         return jsonify({"ok": True, "orders": orders, "total": total, "page": page, "per_page": per_page})
     except Exception as e:
         log_error("api_orders_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Báo cáo Phiếu xuất kho cho 1 file --------------------------------------
+
+OMS_BASE = os.environ.get("OMS_BASE_URL", "http://localhost:8000")
+
+
+def _oms_get(path: str, **params):
+    """GET request tới OMS, trả về dict JSON."""
+    url = f"{OMS_BASE}{path}"
+    resp = _requests.get(url, params=params, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _oms_post(path: str, body):
+    """POST request tới OMS, trả về dict JSON."""
+    url = f"{OMS_BASE}{path}"
+    resp = _requests.post(url, json=body, timeout=30)
+    if not resp.ok:
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text[:500]
+        raise Exception(f"{resp.status_code} {resp.reason} — {detail}")
+    return resp.json()
+
+
+@app.route("/api/files/<path:filename>/report")
+def api_file_report(filename):
+    """
+    Xuất Phiếu xuất kho dưới dạng file Excel (.xlsx) cho một file PDF đã upload.
+    Luồng:
+      1. Lấy danh sách đơn hàng từ DB, group theo shop_name
+      2. Resolve shop_id từ OMS
+      3. Gọi fetch-items để lấy items / model_quantity_purchased
+      4. Gọi find-warehouse-sku để lấy warehouse_sku + warehouse_quantity
+      5. Tổng hợp final_qty = model_quantity_purchased × warehouse_quantity
+      6. Xuất Excel trả về cho browser download
+    """
+    try:
+        # ── Bước 1: Lấy đơn hàng từ DB ─────────────────────────────────────
+        with get_session() as db:
+            rows = (
+                db.query(FileOrder)
+                .filter(FileOrder.filename == filename)
+                .order_by(FileOrder.page_number)
+                .all()
+            )
+            # Chuyển sang plain dict ngay trong session để tránh DetachedInstanceError
+            file_orders = [
+                {
+                    "order_sn":  fo.order_sn,
+                    "shop_name": fo.shop_name,
+                    "platform":  fo.platform,
+                    "delivery_method": fo.delivery_method,
+                    "page_number": fo.page_number,
+                }
+                for fo in rows
+            ]
+
+        if not file_orders:
+            return jsonify({"ok": False, "error": "File không có đơn hàng nào hoặc không tồn tại."}), 404
+
+        # Group theo shop_name  →  {shop_name: [order_sn, ...]}
+        from collections import defaultdict
+        shop_orders: dict[str, list[str]] = defaultdict(list)
+        for fo in file_orders:
+            shop_orders[fo["shop_name"]].append(fo["order_sn"])
+
+        # ── Bước 2: Resolve shop_id cho từng shop ───────────────────────────
+        shop_id_map: dict[str, int] = {}  # shop_name → shop_id
+        resolve_warnings: list[str] = []
+        for shop_name in shop_orders:
+            try:
+                data = _oms_get("/api/shops/resolve-id", shop_name=shop_name)
+                sid = data.get("shop_id") or data.get("id")
+                if sid:
+                    shop_id_map[shop_name] = int(sid)
+                else:
+                    raise Exception(f"Không tìm thấy shop_id trong response: {data}")
+            except Exception as e:
+                r
+
+        if not shop_id_map:
+            return jsonify({"ok": False, "error": "Không resolve được shop_id cho bất kỳ shop nào.",
+                            "warnings": resolve_warnings}), 502
+
+        # ── Bước 3: fetch-items  →  map order_sn → items ────────────────────
+        # items: [{item_id, model_id, model_quantity_purchased, item_name, model_name}]
+        order_items: dict[str, list[dict]] = {}  # order_sn → list của items
+        for shop_name, order_sn_list in shop_orders.items():
+            sid = shop_id_map.get(shop_name)
+            if sid is None:
+                continue
+            try:
+                data = _oms_post("/api/orders/fetch-items", {
+                    "order_sn_list": order_sn_list,
+                    "shop_id": sid,
+                })
+                for order in data.get("orders", []):
+                    order_items[order["order_sn"]] = order.get("items", [])
+            except Exception as e:
+                log_error("api_file_report:fetch-items", e)
+                resolve_warnings.append(f"Lỗi fetch-items shop '{shop_name}': {e}")
+
+        # ── Bước 4: find-warehouse-sku  →  (item_id, model_id) → {warehouse_sku, warehouse_quantity} ──
+        # Gom tất cả (shop_id, item_id, model_id) unique qua từng order
+        sku_input_set: set[tuple] = set()
+        for shop_name, order_sn_list in shop_orders.items():
+            sid = shop_id_map.get(shop_name)
+            if sid is None:
+                continue
+            for osn in order_sn_list:
+                for item in order_items.get(osn, []):
+                    sku_input_set.add((str(sid), str(item["item_id"]), str(item["model_id"])))
+
+        sku_map: dict[tuple, dict] = {}  # (item_id, model_id) → {warehouse_sku, warehouse_quantity}
+        if sku_input_set:
+            sku_payload = [
+                {"shop_id": sid, "item_id": iid, "model_id": mid}
+                for sid, iid, mid in sku_input_set
+            ]
+            try:
+                sku_data = _oms_post("/api/products/find-warehouse-sku", sku_payload)
+                for entry in sku_data.get("found", []):
+                    key = (str(entry["item_id"]), str(entry["model_id"]))
+                    sku_map[key] = {
+                        "warehouse_sku": entry.get("warehouse_sku", "NOSKU"),
+                        "warehouse_quantity": int(entry.get("warehouse_quantity", 1)),
+                    }
+            except Exception as e:
+                log_error("api_file_report:find-warehouse-sku", e)
+                resolve_warnings.append(f"Lỗi find-warehouse-sku: {e}")
+
+        # ── Bước 5: Tổng hợp theo warehouse_sku ────────────────────────────
+        # sku_summary: warehouse_sku → {item_name, model_name, total_qty, order_count}
+        sku_summary: dict[str, dict] = {}
+        for order_sn, items in order_items.items():
+            for item in items:
+                qty_purchased = item.get("model_quantity_purchased") or 0
+                key = (str(item["item_id"]), str(item["model_id"]))
+                sku_info = sku_map.get(key)
+                if not sku_info:
+                    continue
+                wsku  = sku_info["warehouse_sku"]
+                wqty  = sku_info["warehouse_quantity"]
+                final = qty_purchased * wqty
+                if wsku not in sku_summary:
+                    sku_summary[wsku] = {
+                        "item_name":   item.get("item_name", ""),
+                        "model_name":  item.get("model_name", ""),
+                        "total_qty":   0,
+                        "order_count": 0,
+                    }
+                sku_summary[wsku]["total_qty"]   += final
+                sku_summary[wsku]["order_count"] += 1
+
+        # ── Bước 6: Xuất Excel ──────────────────────────────────────────────
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Phiếu xuất kho"
+
+        # Style helpers
+        header_font    = Font(bold=True, color="FFFFFF", size=11)
+        header_fill    = PatternFill("solid", fgColor="1F4E79")
+        center_align   = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left_align     = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+        thin_side      = Side(style="thin")
+        thin_border    = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        alt_fill       = PatternFill("solid", fgColor="EBF3FB")
+
+        # Tiêu đề bảng
+        report_date = datetime.now().strftime("%d/%m/%Y %H:%M")
+        ws.merge_cells("A1:E1")
+        title_cell = ws["A1"]
+        title_cell.value    = f"PHIẾU XUẤT KHO  —  {filename}  ({report_date})"
+        title_cell.font     = Font(bold=True, size=13, color="1F4E79")
+        title_cell.alignment = center_align
+        ws.row_dimensions[1].height = 28
+
+        # Header row
+        headers = ["STT", "Mã SKU kho", "Tên sản phẩm", "Phân loại", "Số lượng"]
+        col_widths = [6, 20, 50, 25, 12]
+        ws.append(headers)
+        for col_idx, (hdr, width) in enumerate(zip(headers, col_widths), start=1):
+            cell = ws.cell(row=2, column=col_idx)
+            cell.font      = header_font
+            cell.fill      = header_fill
+            cell.alignment = center_align
+            cell.border    = thin_border
+            ws.column_dimensions[
+                openpyxl.utils.get_column_letter(col_idx)
+            ].width = width
+        ws.row_dimensions[2].height = 22
+
+        # Data rows
+        for i, (wsku, info) in enumerate(sorted(sku_summary.items()), start=1):
+            row_num = i + 2
+            ws.append([
+                i,
+                wsku,
+                info["item_name"],
+                info["model_name"],
+                info["total_qty"],
+            ])
+            fill = alt_fill if i % 2 == 0 else None
+            for col_idx in range(1, 6):
+                cell = ws.cell(row=row_num, column=col_idx)
+                cell.border = thin_border
+                cell.alignment = center_align if col_idx in (1, 5) else left_align
+                if fill:
+                    cell.fill = fill
+            ws.row_dimensions[row_num].height = 18
+
+        # Freeze panes dưới header
+        ws.freeze_panes = "A3"
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        safe_name = filename.replace("/", "_").replace("\\", "_")
+        dl_name = f"Phieu_xuat_kho_{safe_name}.xlsx"
+
+        return send_file(
+            buf,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=dl_name,
+        )
+
+    except Exception as e:
+        log_error("api_file_report", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
