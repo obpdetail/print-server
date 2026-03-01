@@ -1,8 +1,32 @@
+# -*- coding: utf-8 -*-
+"""
+scan_pdf.py
+Quét file PDF và trích xuất thông tin đơn hàng từng trang.
+Sử dụng core/parsers để xử lý theo từng loại ĐVVC / nền tảng.
+"""
+
+import sys
+from pathlib import Path
+
+import pandas as pd
 import pdfplumber
 import re
-import pandas as pd
 
-def scan_pdf_for_orders(merged_pdf_path):
+BASE_DIR = Path(__file__).parent
+sys.path.insert(0, str(BASE_DIR))
+
+from core.parsers import dispatch_page
+
+
+def scan_pdf_for_orders(merged_pdf_path: str) -> pd.DataFrame:
+    """
+    Quét file PDF, trả về DataFrame với các cột:
+        page, order_sn, shop_name, platform,
+        delivery_method, delivery_method_raw
+
+    Backward-compatible: code cũ chỉ dùng page/order_sn/shop_name/delivery_method
+    vẫn hoạt động bình thường.
+    """
     rows = []
     with pdfplumber.open(merged_pdf_path) as pdf:
         for i, page in enumerate(pdf.pages, start=1):
@@ -111,9 +135,18 @@ def scan_pdf_for_orders(merged_pdf_path):
 
             if order_id:
                 rows.append({
-                    "page": i,
-                    "order_sn": order_id,
-                    "shop_name": shop_name,
-                    "delivery_method": delivery_method
+                    "page":                i,
+                    "order_sn":            order_id,
+                    "shop_name":           shop_name,
+                    "platform":            None,  # Có thể thêm logic xác định platform sau
+                    "delivery_method":     delivery_method,
+                    "delivery_method_raw": delivery_method,
                 })
+
     return pd.DataFrame(rows)
+
+
+if __name__ == "__main__":
+    merged_pdf_path = r"C:\Users\Desk Top\Dropbox\OBP\Code\OBP-GetData\OUTPUT_PDF\reordered_pdf_20260227_150339.pdf"
+    df_orders = scan_pdf_for_orders(merged_pdf_path)
+    print(df_orders)

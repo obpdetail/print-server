@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import (
@@ -22,6 +22,8 @@ sys.path.insert(0, str(BASE_DIR))
 
 from error_handler import log_error, log_info, log_warning
 from scan_pdf import scan_pdf_for_orders
+from sqlalchemy import func
+from database import init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
 UPLOAD_FOLDER        = BASE_DIR / "uploads"
@@ -39,8 +41,19 @@ app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 1024 * 1024
 
+# Khởi tạo database (tạo DB + bảng nếu chưa có)
+try:
+    init_db()
+    log_info("Database initialized.")
+except Exception as _db_err:
+    log_error("init_db", _db_err)
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _utcnow() -> datetime:
+    """Trả về datetime UTC không có tzinfo (để lưu vào MySQL DATETIME)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
@@ -188,15 +201,84 @@ def api_upload():
     if not allowed_file(file.filename):
         return jsonify({"ok": False, "error": "Chỉ chấp nhận file PDF."}), 400
 
-    # Lưu với tên gốc, thêm timestamp để tránh trùng
-    safe_name = Path(file.filename).name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    unique_name = f"{timestamp}_{safe_name}"
-    dest = UPLOAD_FOLDER / unique_name
+    original_name = Path(file.filename).name
+    timestamp     = _utcnow().strftime("%Y%m%d_%H%M%S")
+    unique_name   = f"{timestamp}_{original_name}"
+    dest          = UPLOAD_FOLDER / unique_name
     file.save(str(dest))
-    log_info(f"Upload thành công: {unique_name}")
 
-    return jsonify({"ok": True, "filename": unique_name})
+    file_size_kb = int(round(dest.stat().st_size / 1024, 0))
+    upload_ip    = request.remote_addr
+    now_utc      = _utcnow()
+
+    # ── Quét PDF lấy danh sách đơn hàng ─────────────────────────
+    scanned_orders = []
+    try:
+        df_orders = scan_pdf_for_orders(str(dest))
+        if not df_orders.empty:
+            scanned_orders = df_orders.to_dict("records")
+    except Exception as e:
+        log_error("api_upload.scan", e, {"filename": unique_name})
+
+    # ── Ghi UploadedFile + FileOrder vào DB (1 transaction) ─────
+    try:
+        with get_session() as db:
+            uf = UploadedFile(
+                filename=unique_name,
+                original_name=original_name,
+                upload_time_utc=now_utc,
+                upload_ip=upload_ip,
+                file_size_kb=file_size_kb,
+            )
+            db.add(uf)
+            db.flush()  # lấy uf.id trước khi commit
+
+            for order in scanned_orders:
+                db.add(FileOrder(
+                    uploaded_file_id    = uf.id,
+                    filename            = unique_name,
+                    order_sn            = order["order_sn"],
+                    shop_name           = order.get("shop_name"),
+                    platform            = order.get("platform"),
+                    delivery_method     = order.get("delivery_method"),
+                    delivery_method_raw = order.get("delivery_method_raw"),
+                    page_number         = order.get("page"),
+                ))
+    except Exception as e:
+        log_error("api_upload.db", e, {"filename": unique_name})
+
+    log_info(f"Upload: {unique_name} từ {upload_ip} ({file_size_kb} KB) — {len(scanned_orders)} đơn")
+
+    # ── Kiểm tra đơn trùng (đã in trước đó) ─────────────────────
+    upload_warnings = []
+    try:
+        if scanned_orders:
+            order_sns = [o["order_sn"] for o in scanned_orders]
+            with get_session() as db:
+                existing = db.query(OrderPrint).filter(
+                    OrderPrint.order_sn.in_(order_sns)
+                ).all()
+                for op in existing:
+                    upload_warnings.append({
+                        "order_sn":        op.order_sn,
+                        "shop_name":       op.shop_name,
+                        "platform":        op.platform,
+                        "delivery_method": op.delivery_method,
+                        "print_count":     op.print_count,
+                        "last_print_time": (
+                            op.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                            if op.last_print_time_utc else None
+                        ),
+                    })
+    except Exception as e:
+        log_error("api_upload.check_warnings", e, {"filename": unique_name})
+
+    return jsonify({
+        "ok":              True,
+        "filename":        unique_name,
+        "order_count":     len(scanned_orders),
+        "upload_warnings": upload_warnings,
+    })
 
 
 # --- Danh sách file đã upload ------------------------------------------------
@@ -235,12 +317,11 @@ def api_download_file(filename):
 
 # --- Gửi lệnh in -------------------------------------------------------------
 
-@app.route("/api/print", methods=["POST"])
-def api_print():
+@app.route("/api/print/check", methods=["POST"])
+def api_print_check():
+    """Kiểm tra trước khi in: trả về cảnh báo nếu file/đơn đã in trước đó."""
     data     = request.get_json(force=True) or {}
     filename = data.get("filename", "").strip()
-    printer  = data.get("printer", "").strip()
-    copies   = int(data.get("copies", 1))
 
     if not filename:
         return jsonify({"ok": False, "error": "Thiếu tên file."}), 400
@@ -249,46 +330,229 @@ def api_print():
     if not filepath.exists():
         return jsonify({"ok": False, "error": f"File không tồn tại: {filename}"}), 404
 
-    # Quét PDF để lấy thông tin đơn hàng
+    result = {"ok": True, "has_warnings": False, "file_warnings": None, "order_warnings": []}
+
+    # ── Kiểm tra file đã in chưa ─────────────────────────────────
+    try:
+        with get_session() as db:
+            prev_jobs = (
+                db.query(PrintJob)
+                .filter(PrintJob.filename == filename, PrintJob.status == "success")
+                .order_by(PrintJob.print_time_utc.desc())
+                .all()
+            )
+            if prev_jobs:
+                result["has_warnings"] = True
+                latest = prev_jobs[0]
+                result["file_warnings"] = {
+                    "print_count":     len(prev_jobs),
+                    "last_print_time": (
+                        latest.print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                        if latest.print_time_utc else None
+                    ),
+                    "last_printer":    latest.printer_name,
+                    "last_client_ip":  latest.client_ip,
+                }
+    except Exception as e:
+        log_error("api_print_check.file", e)
+
+    # ── Quét PDF → kiểm tra từng đơn đã in chưa ─────────────────
+    try:
+        # Ưu tiên dùng file_orders (đã scan lúc upload); fallback re-scan nếu file cũ
+        with get_session() as db:
+            file_order_rows = db.query(FileOrder).filter(FileOrder.filename == filename).all()
+            # Chuyển sang dict ngay trong session để tránh detached instance error
+            file_order_dicts = [
+                {
+                    "order_sn":        fo.order_sn,
+                    "shop_name":       fo.shop_name,
+                    "platform":        fo.platform,
+                    "delivery_method": fo.delivery_method,
+                    "page_number":     fo.page_number,
+                }
+                for fo in file_order_rows
+            ]
+
+        if file_order_dicts:
+            order_sns = [fo["order_sn"] for fo in file_order_dicts]
+            fo_map    = {fo["order_sn"]: fo for fo in file_order_dicts}
+        else:
+            # Backward compat: file upload trước khi có feature này
+            df_orders = scan_pdf_for_orders(str(filepath))
+            if not df_orders.empty:
+                order_sns = df_orders["order_sn"].dropna().tolist()
+                fo_map    = {row["order_sn"]: row for _, row in df_orders.iterrows()}
+            else:
+                order_sns = []
+                fo_map    = {}
+
+        if order_sns:
+            with get_session() as db:
+                existing = db.query(OrderPrint).filter(
+                    OrderPrint.order_sn.in_(order_sns)
+                ).all()
+                if existing:
+                    result["has_warnings"] = True
+                    existing_map = {op.order_sn: op for op in existing}
+                    for sn, fo in fo_map.items():
+                        op = existing_map.get(sn)
+                        if op:
+                            page = fo.get("page_number") if isinstance(fo, dict) else fo.get("page")
+                            result["order_warnings"].append({
+                                "order_sn":        op.order_sn,
+                                "shop_name":       op.shop_name,
+                                "platform":        op.platform,
+                                "delivery_method": op.delivery_method,
+                                "page_number":     page,
+                                "print_count":     op.print_count,
+                                "last_print_time": (
+                                    op.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                                    if op.last_print_time_utc else None
+                                ),
+                            })
+    except Exception as e:
+        log_error("api_print_check.orders", e, {"filename": filename})
+
+    return jsonify(result)
+
+
+@app.route("/api/print", methods=["POST"])
+def api_print():
+    data           = request.get_json(force=True) or {}
+    filename       = data.get("filename", "").strip()
+    printer        = data.get("printer", "").strip()
+    copies         = int(data.get("copies", 1))
+    is_reprint     = bool(data.get("is_reprint", False))
+    reprint_reason = data.get("reprint_reason", "").strip()
+    client_ip      = request.remote_addr
+
+    if not filename:
+        return jsonify({"ok": False, "error": "Thiếu tên file."}), 400
+
+    filepath = UPLOAD_FOLDER / filename
+    if not filepath.exists():
+        return jsonify({"ok": False, "error": f"File không tồn tại: {filename}"}), 404
+
+    # ── Server-side validation: yêu cầu lý do nếu đã in trước đó ─
+    try:
+        with get_session() as db:
+            prev_count = (
+                db.query(PrintJob)
+                .filter(PrintJob.filename == filename, PrintJob.status == "success")
+                .count()
+            )
+        if prev_count > 0 and not is_reprint:
+            return jsonify({
+                "ok":                    False,
+                "error":                 "File đã in trước đó. Vui lòng xác nhận lý do in lại.",
+                "requires_reprint_reason": True,
+            }), 409
+    except Exception as e:
+        log_error("api_print.check_prev", e)
+
+    if is_reprint and not reprint_reason:
+        return jsonify({"ok": False, "error": "Vui lòng nhập lý do in lại."}), 400
+
+    # ── Lấy danh sách đơn hàng (từ DB hoặc fallback re-scan) ────
     orders_info = []
     try:
-        df_orders = scan_pdf_for_orders(str(filepath))
-        if not df_orders.empty:
-            orders_info = df_orders.to_dict('records')
-            log_info(f"📦 Quét được {len(orders_info)} đơn hàng trong {filename}:")
-            for order in orders_info:
-                log_info(f"  - Trang {order['page']}: {order['order_sn']} | {order['shop_name']} | {order['delivery_method']}")
-            
-            # Lưu thành file excel - chỉ khi có đơn hàng
-            try:
-                excel_filename = filepath.stem + ".xlsx"
-                excel_path = EXCEL_FOLDER / excel_filename
-                df_orders.to_excel(excel_path, index=False)
-                log_info(f"✅ Đã lưu thông tin đơn hàng vào excels/{excel_path.name}")
-            except Exception as e:
-                log_error("save_excel", e, {"filename": filename})
+        with get_session() as db:
+            file_order_rows = db.query(FileOrder).filter(FileOrder.filename == filename).all()
+            # Chuyển sang dict ngay trong session để tránh detached instance error
+            file_order_dicts = [
+                {
+                    "order_sn":            fo.order_sn,
+                    "shop_name":           fo.shop_name,
+                    "platform":            fo.platform or "unknown",
+                    "delivery_method":     fo.delivery_method,
+                    "delivery_method_raw": fo.delivery_method_raw or "",
+                    "page":                fo.page_number,
+                }
+                for fo in file_order_rows
+            ]
+        if file_order_dicts:
+            orders_info = file_order_dicts
         else:
-            log_warning(f"Không tìm thấy đơn hàng nào trong {filename}")
+            # Backward compat: file upload trước khi có feature này
+            df_orders = scan_pdf_for_orders(str(filepath))
+            if not df_orders.empty:
+                orders_info = df_orders.to_dict("records")
+                
+                # Lưu thành file excel - chỉ khi có đơn hàng
+                try:
+                    excel_filename = filepath.stem + ".xlsx"
+                    excel_path = EXCEL_FOLDER / excel_filename
+                    df_orders.to_excel(excel_path, index=False)
+                    log_info(f"✅ Đã lưu thông tin đơn hàng vào excels/{excel_path.name}")
+                except Exception as e:
+                    log_error("save_excel", e, {"filename": filename})
+            else:
+                log_warning(f"Không tìm thấy đơn hàng nào trong {filename}")
     except Exception as e:
-        log_error("scan_pdf_for_orders", e, {"filename": filename})
-        # Vẫn tiếp tục in dù quét lỗi
+        log_error("api_print.orders", e, {"filename": filename})
 
-    # Gọi hàm in từ core/printing.py
+    # ── Gửi lệnh in ──────────────────────────────────────────────
     try:
         sys.path.insert(0, str(BASE_DIR / "core"))
         from printing import print_pdf_printer
 
         success = True
-        for i in range(max(1, copies)):
-            ok = print_pdf_printer(str(filepath), printer or None)
-            if not ok:
+        for _ in range(max(1, copies)):
+            if not print_pdf_printer(str(filepath), printer or None):
                 success = False
                 break
 
+        orders_summary = f"{len(orders_info)} đơn hàng" if orders_info else "Không xác định đơn hàng"
+        now_utc        = _utcnow()
+        status_str     = "success" if success else "error"
+
+        # ── Ghi PrintJob vào DB ───────────────────────────────────
+        try:
+            with get_session() as db:
+                db_job = PrintJob(
+                    filename=filename,
+                    printer_name=printer or "Default",
+                    client_ip=client_ip,
+                    copies=copies,
+                    is_reprint=is_reprint,
+                    reprint_reason=reprint_reason if is_reprint else None,
+                    status=status_str,
+                    print_time_utc=now_utc,
+                )
+                db.add(db_job)
+
+                if success and orders_info:
+                    for order in orders_info:
+                        existing_op = db.query(OrderPrint).filter(
+                            OrderPrint.order_sn == order["order_sn"]
+                        ).first()
+                        if existing_op:
+                            existing_op.print_count         += 1
+                            existing_op.last_print_time_utc  = now_utc
+                            existing_op.filename             = filename
+                        else:
+                            db.add(OrderPrint(
+                                filename=filename,
+                                order_sn=order["order_sn"],
+                                shop_name=order.get("shop_name"),
+                                platform=order.get("platform", "unknown"),
+                                delivery_method=order.get("delivery_method"),
+                                delivery_method_raw=order.get("delivery_method_raw", ""),
+                                page_number=order.get("page"),
+                                print_count=1,
+                                last_print_time_utc=now_utc,
+                            ))
+        except Exception as e:
+            log_error("api_print.db", e)
+
+        # Giữ jobs.json (backward compat)
+        job = add_job(
+            filename, printer or "Default", status_str,
+            f"{copies} bản in - {orders_summary}" + (" [IN LẠI]" if is_reprint else "")
+        )
+
         if success:
-            orders_summary = f"{len(orders_info)} đơn hàng" if orders_info else "Không xác định đơn hàng"
             log_info(f"In thành công: {filename} → {printer or 'Default'} x{copies} ({orders_summary})")
-            job = add_job(filename, printer or "Default", "success", f"{copies} bản in - {orders_summary}")
             return jsonify({"ok": True, "job": job, "orders": orders_info})
         else:
             msg = (
@@ -296,7 +560,6 @@ def api_print():
                 "Gợi ý: Cài SumatraPDF (https://www.sumatrapdfreader.org) "
                 "hoặc Adobe Acrobat Reader để in PDF tốt hơn."
             )
-            add_job(filename, printer or "Default", "error", msg)
             return jsonify({"ok": False, "error": msg}), 500
 
     except Exception as e:
@@ -306,11 +569,269 @@ def api_print():
         return jsonify({"ok": False, "error": msg}), 500
 
 
-# --- Lịch sử in --------------------------------------------------------------
+# --- Lịch sử in (jobs.json - backward compat) --------------------------------
 
 @app.route("/api/jobs")
 def api_jobs():
     return jsonify({"jobs": load_jobs()})
+
+
+# --- Lịch sử upload (DB) -----------------------------------------------------
+
+@app.route("/api/files/history")
+def api_files_history():
+    page     = max(1, int(request.args.get("page", 1)))
+    per_page = min(100, int(request.args.get("per_page", 20)))
+    offset   = (page - 1) * per_page
+    q        = request.args.get("q",  "").strip()
+    ip       = request.args.get("ip", "").strip()
+    try:
+        with get_session() as db:
+            qry = db.query(UploadedFile)
+            if q:
+                qry = qry.filter(UploadedFile.original_name.like(f"%{q}%"))
+            if ip:
+                qry = qry.filter(UploadedFile.upload_ip.like(f"%{ip}%"))
+            total = qry.count()
+            rows  = (
+                qry
+                .order_by(UploadedFile.upload_time_utc.desc())
+                .offset(offset).limit(per_page).all()
+            )
+            # Đếm số đơn hàng theo filename (1 query)
+            fnames = [r.filename for r in rows]
+            order_counts: dict = {}
+            print_stats: dict = {}
+            if fnames:
+                cnt_rows = (
+                    db.query(FileOrder.filename, func.count(FileOrder.id))
+                    .filter(FileOrder.filename.in_(fnames))
+                    .group_by(FileOrder.filename)
+                    .all()
+                )
+                order_counts = {fn: cnt for fn, cnt in cnt_rows}
+
+                # Thống kê lệnh in theo filename
+                pj_rows = (
+                    db.query(
+                        PrintJob.filename,
+                        func.count(PrintJob.id).label("print_count"),
+                        func.max(PrintJob.print_time_utc).label("last_print_time"),
+                    )
+                    .filter(PrintJob.filename.in_(fnames))
+                    .group_by(PrintJob.filename)
+                    .all()
+                )
+                # Lấy printer + status của lần in cuối cùng
+                last_job_map: dict = {}
+                if pj_rows:
+                    last_times = {fn: lt for fn, _, lt in pj_rows if lt}
+                    for fn, lt in last_times.items():
+                        lj = (
+                            db.query(PrintJob.printer_name, PrintJob.status)
+                            .filter(PrintJob.filename == fn, PrintJob.print_time_utc == lt)
+                            .first()
+                        )
+                        if lj:
+                            last_job_map[fn] = {"printer": lj.printer_name, "status": lj.status}
+                for fn, pc, lt in pj_rows:
+                    print_stats[fn] = {
+                        "print_count":     pc,
+                        "last_print_time": lt.strftime("%Y-%m-%d %H:%M:%S") if lt else None,
+                        "last_printer":    last_job_map.get(fn, {}).get("printer"),
+                        "last_status":     last_job_map.get(fn, {}).get("status"),
+                    }
+            files = [
+                {
+                    "id":            r.id,
+                    "filename":      r.filename,
+                    "original_name": r.original_name,
+                    "upload_time":   r.upload_time_utc.strftime("%Y-%m-%d %H:%M:%S") if r.upload_time_utc else None,
+                    "upload_ip":     r.upload_ip,
+                    "file_size_kb":  r.file_size_kb,
+                    "order_count":   order_counts.get(r.filename, 0),
+                    **print_stats.get(r.filename, {
+                        "print_count": 0, "last_print_time": None,
+                        "last_printer": None, "last_status": None,
+                    }),
+                }
+                for r in rows
+            ]
+        return jsonify({"ok": True, "files": files, "total": total, "page": page, "per_page": per_page})
+    except Exception as e:
+        log_error("api_files_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Lịch sử in (DB) ---------------------------------------------------------
+
+@app.route("/api/print-history")
+def api_print_history():
+    page      = max(1, int(request.args.get("page", 1)))
+    per_page  = min(100, int(request.args.get("per_page", 20)))
+    offset    = (page - 1) * per_page
+    q         = request.args.get("q",          "").strip()
+    printer   = request.args.get("printer",    "").strip()
+    ip        = request.args.get("ip",         "").strip()
+    status    = request.args.get("status",     "").strip()
+    is_reprint= request.args.get("is_reprint", "").strip()
+    try:
+        with get_session() as db:
+            qry = db.query(PrintJob)
+            if q:
+                qry = qry.filter(PrintJob.filename.like(f"%{q}%"))
+            if printer:
+                qry = qry.filter(PrintJob.printer_name.like(f"%{printer}%"))
+            if ip:
+                qry = qry.filter(PrintJob.client_ip.like(f"%{ip}%"))
+            if status:
+                qry = qry.filter(PrintJob.status == status)
+            if is_reprint in ("0", "1"):
+                qry = qry.filter(PrintJob.is_reprint == (is_reprint == "1"))
+            total = qry.count()
+            rows  = (
+                qry
+                .order_by(PrintJob.print_time_utc.desc())
+                .offset(offset).limit(per_page).all()
+            )
+            # Đếm số đơn hàng theo filename (1 query)
+            fnames = [r.filename for r in rows]
+            order_counts: dict = {}
+            if fnames:
+                cnt_rows = (
+                    db.query(FileOrder.filename, func.count(FileOrder.id))
+                    .filter(FileOrder.filename.in_(fnames))
+                    .group_by(FileOrder.filename)
+                    .all()
+                )
+                order_counts = {fn: cnt for fn, cnt in cnt_rows}
+            jobs = [
+                {
+                    "id":             r.id,
+                    "filename":       r.filename,
+                    "printer_name":   r.printer_name,
+                    "client_ip":      r.client_ip,
+                    "copies":         r.copies,
+                    "is_reprint":     r.is_reprint,
+                    "reprint_reason": r.reprint_reason,
+                    "status":         r.status,
+                    "print_time":     r.print_time_utc.strftime("%Y-%m-%d %H:%M:%S") if r.print_time_utc else None,
+                    "order_count":    order_counts.get(r.filename, 0),
+                }
+                for r in rows
+            ]
+        return jsonify({"ok": True, "jobs": jobs, "total": total, "page": page, "per_page": per_page})
+    except Exception as e:
+        log_error("api_print_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Đơn hàng trong 1 file (có trạng thái đã in / chưa in) ----------------------------
+
+@app.route("/api/files/<path:filename>/orders")
+def api_file_orders(filename):
+    """Trả về danh sách đơn hàng trong file kèm trạng thái đã in / chưa in."""
+    try:
+        with get_session() as db:
+            file_orders = (
+                db.query(FileOrder)
+                .filter(FileOrder.filename == filename)
+                .order_by(FileOrder.page_number)
+                .all()
+            )
+            if not file_orders:
+                return jsonify({"ok": True, "orders": [], "total": 0,
+                                "printed": 0, "unprinted": 0})
+
+            # Lấy trạng thái in của tất cả đơn trong file (1 query)
+            order_sns   = [fo.order_sn for fo in file_orders]
+            printed_map = {
+                op.order_sn: op
+                for op in db.query(OrderPrint)
+                           .filter(OrderPrint.order_sn.in_(order_sns))
+                           .all()
+            }
+
+            orders = []
+            for fo in file_orders:
+                op = printed_map.get(fo.order_sn)
+                orders.append({
+                    "id":                fo.id,
+                    "order_sn":          fo.order_sn,
+                    "shop_name":         fo.shop_name,
+                    "platform":          fo.platform,
+                    "delivery_method":   fo.delivery_method,
+                    "delivery_method_raw": fo.delivery_method_raw,
+                    "page_number":       fo.page_number,
+                    "printed":           op is not None,
+                    "print_count":       op.print_count if op else 0,
+                    "last_print_time":   (
+                        op.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                        if op and op.last_print_time_utc else None
+                    ),
+                })
+
+        printed   = sum(1 for o in orders if o["printed"])
+        unprinted = len(orders) - printed
+        return jsonify({
+            "ok":       True,
+            "filename": filename,
+            "orders":   orders,
+            "total":    len(orders),
+            "printed":  printed,
+            "unprinted": unprinted,
+        })
+    except Exception as e:
+        log_error("api_file_orders", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Lịch sử đơn hàng (DB) ---------------------------------------------------
+
+@app.route("/api/orders/history")
+def api_orders_history():
+    page            = max(1, int(request.args.get("page", 1)))
+    per_page        = min(100, int(request.args.get("per_page", 50)))
+    order_sn        = request.args.get("order_sn",        "").strip()
+    shop_name       = request.args.get("shop_name",       "").strip()
+    platform        = request.args.get("platform",        "").strip()
+    delivery_method = request.args.get("delivery_method", "").strip()
+    offset          = (page - 1) * per_page
+    try:
+        with get_session() as db:
+            qry = db.query(OrderPrint)
+            if order_sn:
+                qry = qry.filter(OrderPrint.order_sn.like(f"%{order_sn}%"))
+            if shop_name:
+                qry = qry.filter(OrderPrint.shop_name.like(f"%{shop_name}%"))
+            if platform:
+                qry = qry.filter(OrderPrint.platform == platform)
+            if delivery_method:
+                qry = qry.filter(OrderPrint.delivery_method == delivery_method)
+            total = qry.count()
+            rows  = qry.order_by(OrderPrint.last_print_time_utc.desc()).offset(offset).limit(per_page).all()
+            orders = [
+                {
+                    "id":              r.id,
+                    "filename":        r.filename,
+                    "order_sn":        r.order_sn,
+                    "shop_name":       r.shop_name,
+                    "platform":        r.platform,
+                    "delivery_method": r.delivery_method,
+                    "delivery_method_raw": r.delivery_method_raw,
+                    "page_number":     r.page_number,
+                    "print_count":     r.print_count,
+                    "last_print_time": (
+                        r.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                        if r.last_print_time_utc else None
+                    ),
+                }
+                for r in rows
+            ]
+        return jsonify({"ok": True, "orders": orders, "total": total, "page": page, "per_page": per_page})
+    except Exception as e:
+        log_error("api_orders_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # --- Thông tin máy chủ -------------------------------------------------------
