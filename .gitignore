@@ -39,3 +39,9 @@ desktop.ini
 *.env
 .env
 config.local.py
+
+# Excel files
+excels/
+
+# pdf
+*.pdf

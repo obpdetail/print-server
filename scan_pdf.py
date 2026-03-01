@@ -9,9 +9,9 @@ def scan_pdf_for_orders(merged_pdf_path):
             full_text = page.extract_text(layout=True) or ""
             match_delivery_id = re.search(r"Mã\s*[vV]ận\s*[đĐ]ơn\s*:\s*(\S+)", full_text, flags=re.IGNORECASE)
             delivery_id = match_delivery_id.group(1) if match_delivery_id else None
-            # package_id chỉ có trên tiktok j&t
-            match_package_id = re.search(r"Package\s*ID\s*:\s*(\S+)", full_text, flags=re.IGNORECASE)
-            package_id = match_package_id.group(1) if match_package_id else None
+            # package_id chỉ có trên tiktok j&t (đã loại bỏ từ hóa đơn)
+            # match_package_id = re.search(r"Package\s*ID\s*:\s*(\S+)", full_text, flags=re.IGNORECASE)
+            # package_id = match_package_id.group(1) if match_package_id else None
             print(f"Page {i}: delivery_id = {delivery_id}")
 
             if delivery_id:
@@ -23,10 +23,10 @@ def scan_pdf_for_orders(merged_pdf_path):
                     delivery_method = "VTP"
                 elif delivery_id.startswith("EK"):
                     delivery_method = "VNP"
-            # Nếu không tìm thấy "mã vận đơn", thử tìm mã gói hàng TikTok hoặc J&T
-            elif package_id:
+            # Nếu không tìm thấy "mã vận đơn", kiểm tra xem có chữ J&T trong hóa đơn
+            elif "J&T" in full_text or "J & T" in full_text:
                 jnt_match = re.search(r"(\d{12})", full_text)
-                delivery_id = jnt_match.group(1)
+                delivery_id = jnt_match.group(1) if jnt_match else None
                 delivery_method = "JT"
             else:
                 delivery_method = "HT"  # Hỏa tốc

@@ -25,12 +25,14 @@ from scan_pdf import scan_pdf_for_orders
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
 UPLOAD_FOLDER        = BASE_DIR / "uploads"
+EXCEL_FOLDER         = BASE_DIR / "excels"
 JOB_LOG_FILE         = BASE_DIR / "logs" / "jobs.json"
 PRINTER_ALIASES_FILE = BASE_DIR / "printer_aliases.json"
 ALLOWED_EXT          = {"pdf"}
 MAX_FILE_MB   = 50
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+EXCEL_FOLDER.mkdir(parents=True, exist_ok=True)
 JOB_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
@@ -256,6 +258,15 @@ def api_print():
             log_info(f"📦 Quét được {len(orders_info)} đơn hàng trong {filename}:")
             for order in orders_info:
                 log_info(f"  - Trang {order['page']}: {order['order_sn']} | {order['shop_name']} | {order['delivery_method']}")
+            
+            # Lưu thành file excel - chỉ khi có đơn hàng
+            try:
+                excel_filename = filepath.stem + ".xlsx"
+                excel_path = EXCEL_FOLDER / excel_filename
+                df_orders.to_excel(excel_path, index=False)
+                log_info(f"✅ Đã lưu thông tin đơn hàng vào excels/{excel_path.name}")
+            except Exception as e:
+                log_error("save_excel", e, {"filename": filename})
         else:
             log_warning(f"Không tìm thấy đơn hàng nào trong {filename}")
     except Exception as e:
