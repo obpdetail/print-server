@@ -40,8 +40,10 @@ desktop.ini
 .env
 config.local.py
 
-# File 
+# Excel files
 excels/
+
+# pdf
 *.pdf
 
 test-files/
