@@ -23,7 +23,10 @@ sys.path.insert(0, str(BASE_DIR))
 from error_handler import log_error, log_info, log_warning
 from scan_pdf import scan_pdf_for_orders
 from sqlalchemy import func
-from database import init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint
+from database import (
+    init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint,
+    PrintCheck, PrintCheckOrder
+)
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
 UPLOAD_FOLDER        = BASE_DIR / "uploads"
@@ -412,6 +415,53 @@ def api_print_check():
                             })
     except Exception as e:
         log_error("api_print_check.orders", e, {"filename": filename})
+
+    # ── Lưu kết quả kiểm tra vào database ───────────────────────
+    try:
+        client_ip = request.remote_addr
+        now_utc = _utcnow()
+        
+        with get_session() as db:
+            # Tạo bản ghi PrintCheck
+            print_check = PrintCheck(
+                filename=filename,
+                client_ip=client_ip,
+                check_time_utc=now_utc,
+                has_warnings=result["has_warnings"],
+                file_printed_before=(result["file_warnings"] is not None),
+                file_print_count=(
+                    result["file_warnings"]["print_count"]
+                    if result["file_warnings"] else None
+                ),
+                order_warnings_count=len(result["order_warnings"]),
+                total_orders_in_file=len(fo_map) if 'fo_map' in locals() else 0,
+            )
+            db.add(print_check)
+            db.flush()  # Lấy print_check.id
+
+            # Lưu chi tiết các đơn có cảnh báo
+            for order_warning in result["order_warnings"]:
+                db.add(PrintCheckOrder(
+                    print_check_id=print_check.id,
+                    order_sn=order_warning["order_sn"],
+                    shop_name=order_warning.get("shop_name"),
+                    platform=order_warning.get("platform"),
+                    delivery_method=order_warning.get("delivery_method"),
+                    page_number=order_warning.get("page_number"),
+                    print_count=order_warning.get("print_count", 0),
+                    last_print_time_utc=(
+                        datetime.strptime(order_warning["last_print_time"], "%Y-%m-%d %H:%M:%S")
+                        if order_warning.get("last_print_time") else None
+                    ),
+                ))
+        
+        log_info(
+            f"Kiểm tra in: {filename} từ {client_ip} - "
+            f"{'CÓ CẢNH BÁO' if result['has_warnings'] else 'OK'} - "
+            f"{len(result['order_warnings'])} đơn cảnh báo / {len(fo_map) if 'fo_map' in locals() else 0} đơn"
+        )
+    except Exception as e:
+        log_error("api_print_check.save_db", e, {"filename": filename})
 
     return jsonify(result)
 

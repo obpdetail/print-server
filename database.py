@@ -135,6 +135,54 @@ class OrderPrint(Base):
     )
 
 
+class PrintCheck(Base):
+    """
+    Lịch sử kiểm tra trước khi in (pre-print check).
+    Mỗi lần gọi /api/print/check tạo 1 bản ghi.
+    """
+    __tablename__ = "print_checks"
+
+    id                    = Column(Integer, primary_key=True, autoincrement=True)
+    filename              = Column(String(255), nullable=False, index=True)
+    client_ip             = Column(String(45),  nullable=True)
+    check_time_utc        = Column(DateTime, nullable=False, default=_utcnow)
+    has_warnings          = Column(Boolean, nullable=False, default=False)
+    # ^ True nếu có file_warnings hoặc order_warnings
+    file_printed_before   = Column(Boolean, nullable=False, default=False)
+    # ^ True nếu file đã được in trước đó
+    file_print_count      = Column(Integer, nullable=True)
+    # ^ Số lần file đã in (nếu file_printed_before=True)
+    order_warnings_count  = Column(Integer, nullable=False, default=0)
+    # ^ Số đơn hàng có cảnh báo (đã in trước đó)
+    total_orders_in_file  = Column(Integer, nullable=False, default=0)
+    # ^ Tổng số đơn hàng trong file
+    created_date          = Column(DateTime, nullable=False, default=_utcnow)
+    updated_date          = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+
+class PrintCheckOrder(Base):
+    """
+    Chi tiết các đơn hàng có cảnh báo trong mỗi lần kiểm tra.
+    Chỉ lưu các đơn đã in trước đó (có warning).
+    """
+    __tablename__ = "print_check_orders"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    print_check_id      = Column(Integer, ForeignKey("print_checks.id", ondelete="CASCADE"),
+                                 nullable=False, index=True)
+    order_sn            = Column(String(100), nullable=False, index=True)
+    shop_name           = Column(String(255), nullable=True)
+    platform            = Column(String(50),  nullable=True)
+    delivery_method     = Column(String(50),  nullable=True)
+    page_number         = Column(Integer, nullable=True)
+    print_count         = Column(Integer, nullable=False, default=0)
+    # ^ Số lần đơn này đã in trước đó (tại thời điểm check)
+    last_print_time_utc = Column(DateTime, nullable=True)
+    # ^ Lần in gần nhất của đơn này (tại thời điểm check)
+    created_date        = Column(DateTime, nullable=False, default=_utcnow)
+    updated_date        = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+
 # ── Session context manager ───────────────────────────────────
 
 @contextmanager
