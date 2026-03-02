@@ -241,6 +241,26 @@
       border-radius: var(--radius);
       padding: 12px 16px; font-size: .83rem;
     }
+
+    /* ── Unrecognized Pages Banner ────────────────────────────── */
+    #unrecognized-pages-banner {
+      display: none; margin-top: 10px;
+      background: rgba(248,113,113,.08);
+      border: 1px solid rgba(248,113,113,.35);
+      border-left: 4px solid var(--red);
+      border-radius: var(--radius);
+      padding: 12px 16px; font-size: .83rem;
+    }
+    #unrecognized-pages-banner .warn-title {
+      font-weight: 700; color: var(--red); margin-bottom: 6px;
+    }
+    #unrecognized-pages-banner .unrecog-list {
+      color: var(--muted); font-size: .79rem; line-height: 1.9;
+      padding-left: 4px;
+    }
+    #unrecognized-pages-banner .unrecog-list li {
+      list-style: none;
+    }
     #upload-warning-banner .warn-title {
       font-weight: 700; color: var(--yellow); margin-bottom: 6px;
     }
@@ -437,6 +457,12 @@
           <span class="warn-toggle" onclick="toggleUploadWarnList()">▼ Xem chi tiết</span>
           <div id="upload-warning-list"></div>
         </div>
+
+        <!-- Unrecognized pages banner -->
+        <div id="unrecognized-pages-banner">
+          <div class="warn-title">⛔ <span id="unrecog-title-text"></span></div>
+          <ul class="unrecog-list" id="unrecog-list"></ul>
+        </div>
     </div>
 
     <!-- ── Cột 2: Điều khiển in ── -->
@@ -597,6 +623,9 @@
 
     <!-- Bảng đơn trùng -->
     <div id="modal-order-table" style="display:none"></div>
+
+    <!-- Danh sách trang không nhận dạng được -->
+    <div id="modal-unrecognized" style="display:none"></div>
 
     <!-- Lý do bắt buộc -->
     <div class="modal-reason">
@@ -760,6 +789,7 @@ async function uploadFiles(files) {
 
   let done = 0;
   let allWarnings = [];
+  let allUnrecognized = [];
   for (const file of files) {
     uploadMsg.textContent = `Đang tải: ${file.name} (${done + 1}/${files.length})`;
     const fd = new FormData();
@@ -775,6 +805,10 @@ async function uploadFiles(files) {
       if (d.upload_warnings && d.upload_warnings.length > 0) {
         allWarnings.push({ filename: d.filename, warnings: d.upload_warnings });
       }
+      // Thu thập trang không nhận dạng được
+      if (d.unrecognized_pages && d.unrecognized_pages.length > 0) {
+        allUnrecognized.push({ filename: d.filename, pages: d.unrecognized_pages });
+      }
     } catch (e) {
       toast(`Lỗi upload ${file.name}: ${e.message}`, 'err');
     }
@@ -784,6 +818,7 @@ async function uploadFiles(files) {
   setTimeout(() => { progressWrap.style.display = 'none'; fileInput.value = ''; }, 2000);
   toast(`Upload thành công ${done} file!`, 'ok');
   if (allWarnings.length > 0) showUploadWarnings(allWarnings);
+  if (allUnrecognized.length > 0) showUnrecognizedPages(allUnrecognized);
   refreshFiles();
 }
 
@@ -833,6 +868,25 @@ function toggleUploadWarnList() {
   const shown = el.style.display !== 'none';
   el.style.display  = shown ? 'none' : 'block';
   tog.textContent   = shown ? '▼ Xem chi tiết' : '▲ Ẩn chi tiết';
+}
+
+function showUnrecognizedPages(unrecognizedList) {
+  let totalPages = 0;
+  unrecognizedList.forEach(u => totalPages += u.pages.length);
+
+  document.getElementById('unrecog-title-text').textContent =
+    `Danh sách đơn chưa nhận diện (${totalPages} trang)`;
+
+  let items = '';
+  for (const uf of unrecognizedList) {
+    for (const p of uf.pages) {
+      const dvvc = p.delivery_method || 'Không rõ ĐVVC';
+      const sn   = p.order_sn        || '—';
+      items += `<li>📄 <strong>${escHtml(uf.filename)}</strong>: Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
+    }
+  }
+  document.getElementById('unrecog-list').innerHTML = items;
+  document.getElementById('unrecognized-pages-banner').style.display = 'block';
 }
 
 /* ── Print (2-step: check → modal or direct) ──────────────── */
@@ -925,6 +979,25 @@ function showReprintModal(chkData, printer, copies) {
       </div>`;
   } else {
     orderTableEl.style.display = 'none';
+  }
+
+  // ─ Danh sách trang không nhận dạng ───────────────────────────────────────
+  const unrecogEl = document.getElementById('modal-unrecognized');
+  const ups = chkData.unrecognized_pages || [];
+  if (ups.length > 0) {
+    unrecogEl.style.display = 'block';
+    const items = ups.map(p => {
+      const dvvc = p.delivery_method || 'Không rõ ĐVVC';
+      const sn   = p.order_sn        || '—';
+      return `<li>Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
+    }).join('');
+    unrecogEl.innerHTML = `
+      <div class="modal-section-title" style="margin-top:12px">⛔ ${ups.length} trang không nhận dạng được ĐVVC:</div>
+      <div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;margin-top:6px;">
+        <ul style="list-style:none;font-size:.83rem;color:var(--muted);line-height:2;">${items}</ul>
+      </div>`;
+  } else {
+    unrecogEl.style.display = 'none';
   }
 
   // Reset input lý do

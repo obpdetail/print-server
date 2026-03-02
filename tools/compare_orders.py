@@ -40,7 +40,7 @@ def scan_folder(folder: str) -> pd.DataFrame:
     for pdf_file in pdf_files:
         print(f"  Đang đọc: {pdf_file.name} ...")
         try:
-            df = scan_pdf_for_orders(str(pdf_file))
+            df, _ = scan_pdf_for_orders(str(pdf_file))
             df["source_file"] = pdf_file.name
             all_dfs.append(df)
         except Exception as e:

@@ -220,9 +220,10 @@ def api_upload():
     now_utc      = _utcnow()
 
     # ── Quét PDF lấy danh sách đơn hàng ─────────────────────────
-    scanned_orders = []
+    scanned_orders    = []
+    unrecognized_pages = []
     try:
-        df_orders = scan_pdf_for_orders(str(dest))
+        df_orders, unrecognized_pages = scan_pdf_for_orders(str(dest))
         if not df_orders.empty:
             scanned_orders = df_orders.to_dict("records")
     except Exception as e:
@@ -282,10 +283,11 @@ def api_upload():
         log_error("api_upload.check_warnings", e, {"filename": unique_name})
 
     return jsonify({
-        "ok":              True,
-        "filename":        unique_name,
-        "order_count":     len(scanned_orders),
-        "upload_warnings": upload_warnings,
+        "ok":               True,
+        "filename":         unique_name,
+        "order_count":      len(scanned_orders),
+        "upload_warnings":  upload_warnings,
+        "unrecognized_pages": unrecognized_pages,
     })
 
 
@@ -338,7 +340,7 @@ def api_print_check():
     if not filepath.exists():
         return jsonify({"ok": False, "error": f"File không tồn tại: {filename}"}), 404
 
-    result = {"ok": True, "has_warnings": False, "file_warnings": None, "order_warnings": []}
+    result = {"ok": True, "has_warnings": False, "file_warnings": None, "order_warnings": [], "unrecognized_pages": []}
 
     # ── Kiểm tra file đã in chưa ─────────────────────────────────
     try:
@@ -386,7 +388,8 @@ def api_print_check():
             fo_map    = {fo["order_sn"]: fo for fo in file_order_dicts}
         else:
             # Backward compat: file upload trước khi có feature này
-            df_orders = scan_pdf_for_orders(str(filepath))
+            df_orders, _unrecognized = scan_pdf_for_orders(str(filepath))
+            result["unrecognized_pages"] = _unrecognized
             if not df_orders.empty:
                 order_sns = df_orders["order_sn"].dropna().tolist()
                 fo_map    = {row["order_sn"]: row for _, row in df_orders.iterrows()}
@@ -529,7 +532,7 @@ def api_print():
             orders_info = file_order_dicts
         else:
             # Backward compat: file upload trước khi có feature này
-            df_orders = scan_pdf_for_orders(str(filepath))
+            df_orders, _ = scan_pdf_for_orders(str(filepath))
             if not df_orders.empty:
                 orders_info = df_orders.to_dict("records")
                 
@@ -864,7 +867,7 @@ def api_orders_history():
             if delivery_method:
                 qry = qry.filter(OrderPrint.delivery_method == delivery_method)
             total = qry.count()
-            rows  = qry.order_by(OrderPrint.last_print_time_utc.desc()).offset(offset).limit(per_page).all()
+            rows  = qry.order_by(OrderPrint.id.desc()).offset(offset).limit(per_page).all()
             orders = [
                 {
                     "id":              r.id,
