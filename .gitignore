@@ -43,7 +43,3 @@ config.local.py
 # Excel files
 excels/
 
-# pdf
-*.pdf
-
-test-files/
