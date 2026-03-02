@@ -969,7 +969,7 @@ def api_file_report(filename):
                 else:
                     raise Exception(f"Không tìm thấy shop_id trong response: {data}")
             except Exception as e:
-                r
+                raise Exception(f"Lỗi khi resolve shop_id cho shop '{shop_name}': {e}")
 
         if not shop_id_map:
             return jsonify({"ok": False, "error": "Không resolve được shop_id cho bất kỳ shop nào.",
@@ -991,7 +991,7 @@ def api_file_report(filename):
                     order_items[order["order_sn"]] = order.get("items", [])
             except Exception as e:
                 log_error("api_file_report:fetch-items", e)
-                resolve_warnings.append(f"Lỗi fetch-items shop '{shop_name}': {e}")
+                raise Exception(f"Lỗi khi gọi fetch-items cho shop '{shop_name}': {e}")
 
         # ── Bước 4: find-warehouse-sku  →  (item_id, model_id) → {warehouse_sku, warehouse_quantity} ──
         # Gom tất cả (shop_id, item_id, model_id) unique qua từng order
@@ -1020,7 +1020,7 @@ def api_file_report(filename):
                     }
             except Exception as e:
                 log_error("api_file_report:find-warehouse-sku", e)
-                resolve_warnings.append(f"Lỗi find-warehouse-sku: {e}")
+                raise Exception(f"Lỗi khi gọi find-warehouse-sku: {e}")
 
         # ── Bước 5: Tổng hợp theo warehouse_sku ────────────────────────────
         # sku_summary: warehouse_sku → {item_name, model_name, total_qty, order_count}
