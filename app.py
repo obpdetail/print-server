@@ -1046,15 +1046,29 @@ def api_file_report(filename):
                 for entry in sku_data.get("found", []):
                     key = (str(entry["item_id"]), str(entry["model_id"]))
                     sku_map[key] = {
-                        "warehouse_sku": entry.get("warehouse_sku", "NOSKU"),
-                        "warehouse_quantity": int(entry.get("warehouse_quantity", 1)),
+                        "warehouse_sku": entry.get("warehouse_sku"),
+                        "warehouse_quantity": int(entry.get("warehouse_quantity")),
+                        "note": None,
                     }
+
+                not_found_sku = sku_data.get("not_found", [])
+                if not_found_sku:
+                    # report with note cảnh báo nhưng không fail toàn bộ report
+                    for nf in not_found_sku:
+                        key = (str(nf["item_id"]), str(nf["model_id"]))
+                        sku_map[key] = {
+                            "warehouse_sku": None,
+                            "warehouse_quantity": 0,
+                            "note": f"Không tìm thấy SKU kho cho shop_id={nf['shop_id']}, item_id={nf['item_id']}, model_id={nf['model_id']}"
+                        }
+
             except Exception as e:
                 log_error("api_file_report:find-warehouse-sku", e)
                 raise Exception(f"Lỗi khi gọi find-warehouse-sku: {e}")
 
         # ── Bước 5: Tổng hợp theo warehouse_sku ────────────────────────────
-        # sku_summary: warehouse_sku → {item_name, model_name, total_qty, order_count}
+        # sku_summary: key → {item_name, model_name, total_qty, order_count, note}
+        # key = warehouse_sku (found) hoặc "__NF__{item_id}__{model_id}" (not found)
         sku_summary: dict[str, dict] = {}
         for order_sn, items in order_items.items():
             for item in items:
@@ -1065,16 +1079,20 @@ def api_file_report(filename):
                     continue
                 wsku  = sku_info["warehouse_sku"]
                 wqty  = sku_info["warehouse_quantity"]
+                note  = sku_info.get("note")
                 final = qty_purchased * wqty
-                if wsku not in sku_summary:
-                    sku_summary[wsku] = {
+                # Dùng synthetic key cho not_found để không gộp dưới None
+                summary_key = wsku if wsku else f"__NF__{item['item_id']}__{item['model_id']}"
+                if summary_key not in sku_summary:
+                    sku_summary[summary_key] = {
                         "item_name":   item.get("item_name", ""),
                         "model_name":  item.get("model_name", ""),
                         "total_qty":   0,
                         "order_count": 0,
+                        "note":        note,
                     }
-                sku_summary[wsku]["total_qty"]   += final
-                sku_summary[wsku]["order_count"] += 1
+                sku_summary[summary_key]["total_qty"]   += final
+                sku_summary[summary_key]["order_count"] += 1
 
         # ── Bước 6: Xuất Excel ──────────────────────────────────────────────
         wb = openpyxl.Workbook()
@@ -1092,7 +1110,7 @@ def api_file_report(filename):
 
         # Tiêu đề bảng
         report_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-        ws.merge_cells("A1:E1")
+        ws.merge_cells("A1:F1")
         title_cell = ws["A1"]
         title_cell.value    = f"PHIẾU XUẤT KHO  —  {filename}  ({report_date})"
         title_cell.font     = Font(bold=True, size=13, color="1F4E79")
@@ -1100,8 +1118,8 @@ def api_file_report(filename):
         ws.row_dimensions[1].height = 28
 
         # Header row
-        headers = ["STT", "Mã SKU kho", "Tên sản phẩm", "Phân loại", "Số lượng"]
-        col_widths = [6, 20, 50, 25, 12]
+        headers = ["STT", "Mã SKU kho", "Tên sản phẩm", "Phân loại", "Số lượng", "Ghi chú"]
+        col_widths = [6, 20, 50, 25, 12, 50]
         ws.append(headers)
         for col_idx, (hdr, width) in enumerate(zip(headers, col_widths), start=1):
             cell = ws.cell(row=2, column=col_idx)
@@ -1115,22 +1133,30 @@ def api_file_report(filename):
         ws.row_dimensions[2].height = 22
 
         # Data rows
-        for i, (wsku, info) in enumerate(sorted(sku_summary.items()), start=1):
+        note_font = Font(color="C00000", italic=True, size=9)
+        for i, (summary_key, info) in enumerate(sorted(sku_summary.items()), start=1):
             row_num = i + 2
+            # Hiển thị "—" thay vì synthetic key cho not_found
+            wsku_display = summary_key if not summary_key.startswith("__NF__") else "—"
+            note_text    = info.get("note") or ""
             ws.append([
                 i,
-                wsku,
+                wsku_display,
                 info["item_name"],
                 info["model_name"],
                 info["total_qty"],
+                note_text,
             ])
             fill = alt_fill if i % 2 == 0 else None
-            for col_idx in range(1, 6):
+            for col_idx in range(1, 7):
                 cell = ws.cell(row=row_num, column=col_idx)
-                cell.border = thin_border
+                cell.border    = thin_border
                 cell.alignment = center_align if col_idx in (1, 5) else left_align
                 if fill:
                     cell.fill = fill
+            # Tô đỏ chữ đỏ cột Ghi chú nếu có nội dung
+            if note_text:
+                ws.cell(row=row_num, column=6).font = note_font
             ws.row_dimensions[row_num].height = 18
 
         # Freeze panes dưới header
