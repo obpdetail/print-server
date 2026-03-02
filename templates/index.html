@@ -142,6 +142,7 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .file-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+    .file-note { font-size: .72rem; color: var(--red); margin-top: 3px; font-weight: 600; }
     .file-empty { color: var(--muted); font-size: .85rem; text-align: center; padding: 20px 0; }
 
     /* ── PDF Preview ─────────────────────────────────────────────── */
@@ -522,9 +523,9 @@
     <div class="dt-wrap" id="uploads-table-wrap">
       <table class="data-table">
         <thead><tr>
-          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>Trạng thái in</th><th></th>ID</th><th></th>
+          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>Trạng thái in</th><th>Ghi chú</th><th>ID</th><th></th>
         </tr></thead>
-        <tbody id="up-tbody"><tr><td colspan="7" class="dt-empty">Đang tải…</td></tr></tbody>
+        <tbody id="up-tbody"><tr><td colspan="9" class="dt-empty">Đang tải…</td></tr></tbody>
       </table>
     </div>
     <div class="dt-pagination" id="up-pg"></div>
@@ -708,17 +709,22 @@ async function refreshFiles() {
     return;
   }
 
-  list.innerHTML = d.files.map(f => `
+  list.innerHTML = d.files.map(f => {
+    const noteBadge = (f.note_items && f.note_items.length > 0)
+      ? `<div class="file-note">⛔ ${f.note_items.length} trang chưa nhận diện</div>`
+      : '';
+    return `
     <div class="file-item ${selectedFile === f.name ? 'selected' : ''}" onclick="selectFile('${f.name}')" data-name="${f.name}">
       <div class="file-icon">📄</div>
       <div class="file-info">
         <div class="file-name">${f.name}</div>
         <div class="file-meta">${f.size_kb} KB &nbsp;·&nbsp; ${f.time}</div>
+        ${noteBadge}
       </div>
       <button class="btn btn-danger"
               onclick="event.stopPropagation(); deleteFile('${f.name}')">🗑</button>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function selectFile(name) {
@@ -1103,7 +1109,7 @@ async function loadUploadsTable(page) {
   if (q)  params.set('q',  q);
   if (ip) params.set('ip', ip);
   const tbody = document.getElementById('up-tbody');
-  tbody.innerHTML = '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
   try {
     const r = await fetch(`/api/files/history?${params}`);
     const d = await r.json();
@@ -1111,7 +1117,7 @@ async function loadUploadsTable(page) {
     const totalPages = Math.ceil(d.total / per_page) || 1;
     document.getElementById('up-count').textContent = `${d.total} bản ghi`;
     if (!d.files.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
     } else {
       tbody.innerHTML = d.files.map(f => {
         let printCell = '<span style="color:var(--muted);font-size:.78rem">Chưa in</span>';
@@ -1125,6 +1131,16 @@ async function loadUploadsTable(page) {
             ? `<div class="monospace" style="font-size:.72rem;color:var(--muted)">${escHtml(f.last_print_time)}</div>` : '';
           printCell = `<div>${statusIcon}${reprintBadge}${printerLine}${timeLine}</div>`;
         }
+        let noteCell = '<span style="color:var(--muted);font-size:.78rem">—</span>';
+        const items = f.note_items || [];
+        if (items.length > 0) {
+          const lines = items.map(p => {
+            const dvvc = p.delivery_method || 'Không rõ ĐVVC';
+            const sn   = p.order_sn        || '—';
+            return `<div style="white-space:nowrap">Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</div>`;
+          }).join('');
+          noteCell = `<div style="font-size:.78rem;color:var(--red);line-height:1.7">⛔ ${items.length} trang chưa nhận diện:<div style="color:var(--muted);margin-top:3px">${lines}</div></div>`;
+        }
         return `
         <tr>
           <td class="monospace">${escHtml(f.original_name || f.filename)}</td>
@@ -1133,6 +1149,7 @@ async function loadUploadsTable(page) {
           <td>${f.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${f.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
           <td class="monospace">${escHtml(f.upload_time || '—')}</td>
           <td>${printCell}</td>
+          <td>${noteCell}</td>
           <td>${f.id}</td>
           <td style="white-space:nowrap">
             <button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.filename)}')">🖨️ In</button>
@@ -1143,7 +1160,7 @@ async function loadUploadsTable(page) {
     }
     renderPagination('up-pg', page, totalPages, 'loadUploadsTable');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
   }
 }
 

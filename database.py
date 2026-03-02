@@ -56,6 +56,8 @@ class UploadedFile(Base):
     upload_time_utc = Column(DateTime, nullable=False, default=_utcnow)
     upload_ip       = Column(String(45), nullable=True)   # IPv4 hoặc IPv6
     file_size_kb    = Column(Integer, nullable=True)
+    note            = Column(Text, nullable=True)
+    # ^ JSON list các trang không nhận dạng được ĐVVC khi upload
     created_date    = Column(DateTime, nullable=False, default=_utcnow)
     updated_date    = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
@@ -229,3 +231,15 @@ def init_db():
 
     # Tạo tất cả bảng
     Base.metadata.create_all(bind=engine)
+
+    # ── Migration an toàn: thêm cột mới nếu chưa có ──────────
+    migrations = [
+        "ALTER TABLE uploaded_files ADD COLUMN note TEXT NULL",
+    ]
+    with engine.connect() as conn:
+        for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # Cột đã tồn tại → bỏ qua

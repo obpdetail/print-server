@@ -63,6 +63,15 @@ def _utcnow() -> datetime:
     """Trả về datetime UTC không có tzinfo (để lưu vào MySQL DATETIME)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+def _parse_note(note_raw: str | None) -> list:
+    """Giải mã note JSON từ DB thành list dict. Trả về [] nếu rỗng hoặc lỗi."""
+    if not note_raw:
+        return []
+    try:
+        return json.loads(note_raw)
+    except Exception:
+        return []
+
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
 
@@ -238,6 +247,7 @@ def api_upload():
                 upload_time_utc=now_utc,
                 upload_ip=upload_ip,
                 file_size_kb=file_size_kb,
+                note=json.dumps(unrecognized_pages, ensure_ascii=False) if unrecognized_pages else None,
             )
             db.add(uf)
             db.flush()  # lấy uf.id trước khi commit
@@ -295,13 +305,30 @@ def api_upload():
 
 @app.route("/api/files")
 def api_files():
+    # Lấy note từ DB
+    note_map: dict = {}
+    try:
+        with get_session() as db:
+            for row in db.query(UploadedFile.filename, UploadedFile.note).all():
+                note_map[row.filename] = row.note
+    except Exception:
+        pass
+
     files = []
     for p in sorted(UPLOAD_FOLDER.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
         if p.suffix.lower() == ".pdf":
+            raw = note_map.get(p.name)
+            note_items = []
+            if raw:
+                try:
+                    note_items = json.loads(raw)
+                except Exception:
+                    pass
             files.append({
-                "name":    p.name,
-                "size_kb": round(p.stat().st_size / 1024, 1),
-                "time":    datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                "name":       p.name,
+                "size_kb":    round(p.stat().st_size / 1024, 1),
+                "time":       datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                "note_items": note_items,
             })
     return jsonify({"files": files})
 
@@ -708,6 +735,7 @@ def api_files_history():
                     "upload_ip":     r.upload_ip,
                     "file_size_kb":  r.file_size_kb,
                     "order_count":   order_counts.get(r.filename, 0),
+                    "note_items":    _parse_note(r.note),
                     **print_stats.get(r.filename, {
                         "print_count": 0, "last_print_time": None,
                         "last_printer": None, "last_status": None,
