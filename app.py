@@ -1051,14 +1051,14 @@ def api_file_report(filename):
                         "note": None,
                     }
 
-                not_found_sku = sku_data.get("not_found", [])
+                not_found_sku = sku_data.get("not-found", [])
                 if not_found_sku:
                     # report with note cảnh báo nhưng không fail toàn bộ report
                     for nf in not_found_sku:
                         key = (str(nf["item_id"]), str(nf["model_id"]))
                         sku_map[key] = {
                             "warehouse_sku": None,
-                            "warehouse_quantity": 0,
+                            "warehouse_quantity": 1,
                             "note": f"Không tìm thấy SKU kho cho shop_id={nf['shop_id']}, item_id={nf['item_id']}, model_id={nf['model_id']}"
                         }
 
