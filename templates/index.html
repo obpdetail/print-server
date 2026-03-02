@@ -1,720 +1,1307 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🖨️ Print Server</title>
-  <style>
-    /* ── Reset & Base ───────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:        #0f1117;
-      --surface:   #1a1d27;
-      --surface2:  #222637;
-      --border:    #2e3350;
-      --accent:    #4f8ef7;
-      --accent-h:  #3a74e0;
-      --green:     #34d399;
-      --red:       #f87171;
-      --yellow:    #fbbf24;
-      --text:      #e2e8f0;
-      --muted:     #8892aa;
-      --radius:    12px;
-      --shadow:    0 4px 24px rgba(0,0,0,.45);
-    }
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 24px 16px 48px;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🖨️ Print Server</title>
+    <style>
+      /* ── Reset & Base ───────────────────────────────────────────── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --surface2: #222637;
+        --border: #2e3350;
+        --accent: #4f8ef7;
+        --accent-h: #3a74e0;
+        --green: #34d399;
+        --red: #f87171;
+        --yellow: #fbbf24;
+        --text: #e2e8f0;
+        --muted: #8892aa;
+        --radius: 12px;
+        --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+      }
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 24px 16px 48px;
+      }
 
-    /* ── Layout ─────────────────────────────────────────────────── */
-    .container { max-width: 1400px; margin: 0 auto; }
-    header {
-      display: flex; align-items: center; gap: 12px;
-      margin-bottom: 28px;
-    }
-    header h1 { font-size: 1.6rem; font-weight: 700; }
-    .badge {
-      font-size: .72rem; padding: 3px 10px;
-      border-radius: 99px; font-weight: 600;
-      background: var(--accent); color: #fff;
-    }
-    .server-info {
-      margin-left: auto; font-size: .8rem; color: var(--muted);
-      text-align: right; line-height: 1.6;
-    }
-    .server-info span { color: var(--green); font-weight: 600; }
+      /* ── Layout ─────────────────────────────────────────────────── */
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      header h1 {
+        font-size: 1.6rem;
+        font-weight: 700;
+      }
+      .badge {
+        font-size: 0.72rem;
+        padding: 3px 10px;
+        border-radius: 99px;
+        font-weight: 600;
+        background: var(--accent);
+        color: #fff;
+      }
+      .server-info {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: var(--muted);
+        text-align: right;
+        line-height: 1.6;
+      }
+      .server-info span {
+        color: var(--green);
+        font-weight: 600;
+      }
 
-    .grid { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+      .grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: 1fr 1fr;
+      }
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      box-shadow: var(--shadow);
-    }
-    .card-title {
-      font-size: .85rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .08em;
-      color: var(--muted); margin-bottom: 16px;
-      display: flex; align-items: center; gap: 8px;
-    }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: var(--shadow);
+      }
+      .card-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    /* ── Drop Zone ──────────────────────────────────────────────── */
-    #drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 36px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      position: relative;
-    }
-    #drop-zone.drag-over {
-      border-color: var(--accent);
-      background: rgba(79,142,247,.07);
-    }
-    #drop-zone .icon { font-size: 2.4rem; margin-bottom: 10px; }
-    #drop-zone p { color: var(--muted); font-size: .88rem; }
-    #drop-zone strong { color: var(--accent); }
-    #file-input { display: none; }
+      /* ── Drop Zone ──────────────────────────────────────────────── */
+      #drop-zone {
+        border: 2px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 36px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+        position: relative;
+      }
+      #drop-zone.drag-over {
+        border-color: var(--accent);
+        background: rgba(79, 142, 247, 0.07);
+      }
+      #drop-zone .icon {
+        font-size: 2.4rem;
+        margin-bottom: 10px;
+      }
+      #drop-zone p {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+      #drop-zone strong {
+        color: var(--accent);
+      }
+      #file-input {
+        display: none;
+      }
 
-    /* ── Upload Progress ────────────────────────────────────────── */
-    #upload-progress {
-      margin-top: 14px; display: none;
-    }
-    .progress-bar-wrap {
-      background: var(--surface2); border-radius: 99px;
-      height: 6px; overflow: hidden; margin-top: 8px;
-    }
-    .progress-bar {
-      height: 100%; background: var(--accent);
-      border-radius: 99px; transition: width .3s;
-      width: 0%;
-    }
+      /* ── Upload Progress ────────────────────────────────────────── */
+      #upload-progress {
+        margin-top: 14px;
+        display: none;
+      }
+      .progress-bar-wrap {
+        background: var(--surface2);
+        border-radius: 99px;
+        height: 6px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+      .progress-bar {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 99px;
+        transition: width 0.3s;
+        width: 0%;
+      }
 
-    /* ── Print Controls ─────────────────────────────────────────── */
-    .field { margin-bottom: 14px; }
-    label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
-    select, input[type=number] {
-      width: 100%; background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); border-radius: 8px; padding: 9px 12px;
-      font-size: .9rem; outline: none;
-      appearance: none;
-      transition: border-color .2s;
-    }
-    select:focus, input[type=number]:focus { border-color: var(--accent); }
+      /* ── Print Controls ─────────────────────────────────────────── */
+      .field {
+        margin-bottom: 14px;
+      }
+      label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      select,
+      input[type="number"] {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-size: 0.9rem;
+        outline: none;
+        appearance: none;
+        transition: border-color 0.2s;
+      }
+      select:focus,
+      input[type="number"]:focus {
+        border-color: var(--accent);
+      }
 
-    .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 22px; border-radius: 8px; border: none;
-      font-size: .9rem; font-weight: 600; cursor: pointer;
-      transition: background .2s, transform .1s;
-    }
-    .btn:active { transform: scale(.97); }
-    .btn-primary { background: var(--accent); color: #fff; width: 100%; justify-content: center; }
-    .btn-primary:hover { background: var(--accent-h); }
-    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-danger { background: rgba(248,113,113,.15); color: var(--red); padding: 5px 12px; font-size: .78rem; }
-    .btn-danger:hover { background: rgba(248,113,113,.3); }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 22px;
+        border-radius: 8px;
+        border: none;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          transform 0.1s;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+        width: 100%;
+        justify-content: center;
+      }
+      .btn-primary:hover {
+        background: var(--accent-h);
+      }
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-danger {
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--red);
+        padding: 5px 12px;
+        font-size: 0.78rem;
+      }
+      .btn-danger:hover {
+        background: rgba(248, 113, 113, 0.3);
+      }
 
-    /* ── File List ──────────────────────────────────────────────── */
-    #file-list { display: flex; flex-direction: column; gap: 8px; }
-    .file-item {
-      display: flex; align-items: center; gap: 12px;
-      background: var(--surface2); border-radius: 8px;
-      padding: 10px 14px; cursor: pointer;
-      border: 2px solid transparent;
-      transition: border-color .2s, background .2s;
-    }
-    .file-item:hover { background: var(--surface); }
-    .file-item.selected { border-color: var(--accent); }
-    .file-icon { font-size: 1.4rem; flex-shrink: 0; }
-    .file-info { flex: 1; min-width: 0; }
-    .file-name {
-      font-size: .85rem; font-weight: 600;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .file-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; }
-    .file-note { font-size: .72rem; color: var(--red); margin-top: 3px; font-weight: 600; }
-    .file-empty { color: var(--muted); font-size: .85rem; text-align: center; padding: 20px 0; }
+      /* ── File List ──────────────────────────────────────────────── */
+      #file-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .file-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+      }
+      .file-item:hover {
+        background: var(--surface);
+      }
+      .file-item.selected {
+        border-color: var(--accent);
+      }
+      .file-icon {
+        font-size: 1.4rem;
+        flex-shrink: 0;
+      }
+      .file-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .file-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .file-meta {
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .file-note {
+        font-size: 0.72rem;
+        color: var(--red);
+        margin-top: 3px;
+        font-weight: 600;
+      }
+      .file-empty {
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+        padding: 20px 0;
+      }
 
-    /* ── PDF Preview ─────────────────────────────────────────────── */
-    #preview-wrap {
-      margin-top: 20px; display: none;
-    }
-    #preview-wrap iframe {
-      width: 100%; height: 480px; border: 1px solid var(--border);
-      border-radius: var(--radius); background: #fff;
-    }
+      /* ── PDF Preview ─────────────────────────────────────────────── */
+      #preview-wrap {
+        margin-top: 20px;
+        display: none;
+      }
+      #preview-wrap iframe {
+        width: 100%;
+        height: 480px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #fff;
+      }
 
-    /* ── Job History ─────────────────────────────────────────────── */
-    #job-list { display: flex; flex-direction: column; gap: 8px; }
-    .job-item {
-      display: flex; align-items: center; gap: 12px;
-      background: var(--surface2); border-radius: 8px;
-      padding: 10px 14px; font-size: .82rem;
-    }
-    .job-status { font-size: 1rem; flex-shrink: 0; }
-    .job-info { flex: 1; min-width: 0; }
-    .job-name {
-      font-weight: 600;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .job-meta { color: var(--muted); margin-top: 2px; }
-    .tag {
-      padding: 2px 9px; border-radius: 99px; font-size: .72rem; font-weight: 600;
-    }
-    .tag-ok  { background: rgba(52,211,153,.15); color: var(--green); }
-    .tag-err { background: rgba(248,113,113,.15); color: var(--red); }
+      /* ── Job History ─────────────────────────────────────────────── */
+      #job-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .job-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.82rem;
+      }
+      .job-status {
+        font-size: 1rem;
+        flex-shrink: 0;
+      }
+      .job-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .job-name {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .job-meta {
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .tag {
+        padding: 2px 9px;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+      .tag-ok {
+        background: rgba(52, 211, 153, 0.15);
+        color: var(--green);
+      }
+      .tag-err {
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--red);
+      }
 
-    /* ── Toast ───────────────────────────────────────────────────── */
-    #toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 12px 18px;
-      font-size: .85rem; max-width: 320px;
-      box-shadow: var(--shadow);
-      transform: translateY(80px); opacity: 0;
-      transition: transform .3s, opacity .3s;
-      pointer-events: none; z-index: 999;
-    }
-    #toast.show { transform: translateY(0); opacity: 1; }
-    #toast.ok   { border-left: 4px solid var(--green); }
-    #toast.err  { border-left: 4px solid var(--red); }
-    #toast.info { border-left: 4px solid var(--accent); }
+      /* ── Toast ───────────────────────────────────────────────────── */
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 18px;
+        font-size: 0.85rem;
+        max-width: 320px;
+        box-shadow: var(--shadow);
+        transform: translateY(80px);
+        opacity: 0;
+        transition:
+          transform 0.3s,
+          opacity 0.3s;
+        pointer-events: none;
+        z-index: 999;
+      }
+      #toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      #toast.ok {
+        border-left: 4px solid var(--green);
+      }
+      #toast.err {
+        border-left: 4px solid var(--red);
+      }
+      #toast.info {
+        border-left: 4px solid var(--accent);
+      }
 
-    /* ── Spinner ─────────────────────────────────────────────────── */
-    .spinner {
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: inline-block;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+      /* ── Spinner ─────────────────────────────────────────────────── */
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        display: inline-block;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    .section-title {
-      font-size: 1rem; font-weight: 700; margin-bottom: 14px;
-      border-bottom: 1px solid var(--border); padding-bottom: 10px;
-    }
+      .section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+      }
 
-    /* ── Printer Alias Table ─────────────────────────────────────────── */
-    .alias-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .alias-table th {
-      text-align: left; color: var(--muted); font-weight: 700;
-      padding: 6px 10px; border-bottom: 1px solid var(--border);
-      font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
-    }
-    .alias-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .alias-table tr:last-child td { border-bottom: none; }
-    .alias-table tr:hover td { background: rgba(255,255,255,.025); }
-    .alias-input {
-      background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); border-radius: 6px; padding: 6px 10px;
-      font-size: .83rem; outline: none; width: 100%;
-      transition: border-color .2s;
-    }
-    .alias-input:focus { border-color: var(--accent); }
-    .btn-save {
-      background: rgba(79,142,247,.15); color: var(--accent);
-      padding: 5px 12px; font-size: .78rem;
-    }
-    .btn-save:hover { background: rgba(79,142,247,.3); }
-    .printer-id { color: var(--muted); font-size: .78rem; font-family: monospace; }
-    .alias-actions { display: flex; gap: 6px; }
+      /* ── Printer Alias Table ─────────────────────────────────────────── */
+      .alias-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      .alias-table th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 700;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+      .alias-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      .alias-table tr:last-child td {
+        border-bottom: none;
+      }
+      .alias-table tr:hover td {
+        background: rgba(255, 255, 255, 0.025);
+      }
+      .alias-input {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 0.83rem;
+        outline: none;
+        width: 100%;
+        transition: border-color 0.2s;
+      }
+      .alias-input:focus {
+        border-color: var(--accent);
+      }
+      .btn-save {
+        background: rgba(79, 142, 247, 0.15);
+        color: var(--accent);
+        padding: 5px 12px;
+        font-size: 0.78rem;
+      }
+      .btn-save:hover {
+        background: rgba(79, 142, 247, 0.3);
+      }
+      .printer-id {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-family: monospace;
+      }
+      .alias-actions {
+        display: flex;
+        gap: 6px;
+      }
 
-    .full-col { grid-column: 1 / -1; }
+      .full-col {
+        grid-column: 1 / -1;
+      }
 
-    /* ── Upload Warning Banner ────────────────────────────────── */
-    #upload-warning-banner {
-      display: none; margin-top: 14px;
-      background: rgba(251,191,36,.1);
-      border: 1px solid rgba(251,191,36,.4);
-      border-left: 4px solid var(--yellow);
-      border-radius: var(--radius);
-      padding: 12px 16px; font-size: .83rem;
-    }
+      /* ── Upload Warning Banner ────────────────────────────────── */
+      #upload-warning-banner {
+        display: none;
+        margin-top: 14px;
+        background: rgba(251, 191, 36, 0.1);
+        border: 1px solid rgba(251, 191, 36, 0.4);
+        border-left: 4px solid var(--yellow);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        font-size: 0.83rem;
+      }
 
-    /* ── Unrecognized Pages Banner ────────────────────────────── */
-    #unrecognized-pages-banner {
-      display: none; margin-top: 10px;
-      background: rgba(248,113,113,.08);
-      border: 1px solid rgba(248,113,113,.35);
-      border-left: 4px solid var(--red);
-      border-radius: var(--radius);
-      padding: 12px 16px; font-size: .83rem;
-    }
-    #unrecognized-pages-banner .warn-title {
-      font-weight: 700; color: var(--red); margin-bottom: 6px;
-    }
-    #unrecognized-pages-banner .unrecog-list {
-      color: var(--muted); font-size: .79rem; line-height: 1.9;
-      padding-left: 4px;
-    }
-    #unrecognized-pages-banner .unrecog-list li {
-      list-style: none;
-    }
-    #upload-warning-banner .warn-title {
-      font-weight: 700; color: var(--yellow); margin-bottom: 6px;
-    }
-    #upload-warning-banner .warn-detail {
-      color: var(--muted); font-size: .78rem; line-height: 1.8;
-    }
-    .warn-toggle { cursor: pointer; color: var(--accent); font-size: .78rem; margin-top: 4px; display: inline-block; }
-    #upload-warning-list { display: none; margin-top: 8px; }
+      /* ── Unrecognized Pages Banner ────────────────────────────── */
+      #unrecognized-pages-banner {
+        display: none;
+        margin-top: 10px;
+        background: rgba(248, 113, 113, 0.08);
+        border: 1px solid rgba(248, 113, 113, 0.35);
+        border-left: 4px solid var(--red);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        font-size: 0.83rem;
+      }
+      #unrecognized-pages-banner .warn-title {
+        font-weight: 700;
+        color: var(--red);
+        margin-bottom: 6px;
+      }
+      #unrecognized-pages-banner .unrecog-list {
+        color: var(--muted);
+        font-size: 0.79rem;
+        line-height: 1.9;
+        padding-left: 4px;
+      }
+      #unrecognized-pages-banner .unrecog-list li {
+        list-style: none;
+      }
+      #upload-warning-banner .warn-title {
+        font-weight: 700;
+        color: var(--yellow);
+        margin-bottom: 6px;
+      }
+      #upload-warning-banner .warn-detail {
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.8;
+      }
+      .warn-toggle {
+        cursor: pointer;
+        color: var(--accent);
+        font-size: 0.78rem;
+        margin-top: 4px;
+        display: inline-block;
+      }
+      #upload-warning-list {
+        display: none;
+        margin-top: 8px;
+      }
 
-    /* ── Reprint Modal ───────────────────────────────────────── */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.7);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1000; padding: 16px;
-    }
-    .modal-box {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px;
-      width: 100%; max-width: 720px;
-      box-shadow: 0 8px 40px rgba(0,0,0,.6);
-      max-height: 90vh; overflow-y: auto;
-    }
-    .modal-header {
-      font-size: 1.1rem; font-weight: 700;
-      color: var(--yellow); margin-bottom: 16px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .modal-warn-block {
-      background: rgba(251,191,36,.08);
-      border: 1px solid rgba(251,191,36,.3);
-      border-radius: 8px; padding: 10px 14px;
-      font-size: .85rem; margin-bottom: 14px; line-height: 1.7;
-    }
-    .modal-section-title {
-      font-size: .82rem; font-weight: 700;
-      color: var(--muted); text-transform: uppercase;
-      letter-spacing: .07em; margin-bottom: 8px;
-    }
-    .table-wrap { overflow-x: auto; margin-bottom: 16px; }
-    .warn-table {
-      width: 100%; border-collapse: collapse;
-      font-size: .81rem;
-    }
-    .warn-table th {
-      text-align: left; color: var(--muted); font-weight: 700;
-      padding: 6px 10px; border-bottom: 1px solid var(--border);
-      font-size: .72rem; text-transform: uppercase;
-      white-space: nowrap;
-    }
-    .warn-table td {
-      padding: 7px 10px; border-bottom: 1px solid rgba(46,51,80,.5);
-      vertical-align: middle;
-    }
-    .warn-table tr:last-child td { border-bottom: none; }
-    .warn-table tr:hover td { background: rgba(255,255,255,.02); }
-    .modal-reason {
-      margin: 16px 0 0;
-      background: var(--surface2); border-radius: 8px; padding: 14px;
-    }
-    .modal-reason label {
-      display: block; font-size: .82rem; font-weight: 600;
-      margin-bottom: 8px; color: var(--text);
-    }
-    .modal-reason input {
-      width: 100%; background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text); border-radius: 8px;
-      padding: 10px 12px; font-size: .9rem;
-      outline: none; transition: border-color .2s;
-    }
-    .modal-reason input:focus { border-color: var(--accent); }
-    .modal-reason input.input-err { border-color: var(--red); }
-    .modal-actions {
-      display: flex; gap: 10px; margin-top: 16px;
-      justify-content: flex-end;
-    }
-    .btn-confirm {
-      background: var(--yellow); color: #111;
-      padding: 10px 22px; font-weight: 700;
-    }
-    .btn-confirm:hover { background: #f59e0b; }
-    .method-badge {
-      display: inline-block; padding: 2px 8px;
-      border-radius: 99px; font-size: .72rem; font-weight: 700;
-      background: rgba(79,142,247,.15); color: var(--accent);
-    }
-    .platform-badge {
-      display: inline-block; padding: 2px 8px;
-      border-radius: 99px; font-size: .72rem; font-weight: 700;
-    }
-    .platform-shopee { background: rgba(238,77,45,.15); color: #ee4d2d; }
-    .platform-tiktok { background: rgba(255,255,255,.08); color: #fff; }
-    .count-red { color: var(--red); font-weight: 700; }
+      /* ── Reprint Modal ───────────────────────────────────────── */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 16px;
+      }
+      .modal-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        width: 100%;
+        max-width: 720px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .modal-header {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--yellow);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .modal-warn-block {
+        background: rgba(251, 191, 36, 0.08);
+        border: 1px solid rgba(251, 191, 36, 0.3);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        margin-bottom: 14px;
+        line-height: 1.7;
+      }
+      .modal-section-title {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        margin-bottom: 8px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        margin-bottom: 16px;
+      }
+      .warn-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.81rem;
+      }
+      .warn-table th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 700;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .warn-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid rgba(46, 51, 80, 0.5);
+        vertical-align: middle;
+      }
+      .warn-table tr:last-child td {
+        border-bottom: none;
+      }
+      .warn-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .modal-reason {
+        margin: 16px 0 0;
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 14px;
+      }
+      .modal-reason label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+      .modal-reason input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .modal-reason input:focus {
+        border-color: var(--accent);
+      }
+      .modal-reason input.input-err {
+        border-color: var(--red);
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+        justify-content: flex-end;
+      }
+      .btn-confirm {
+        background: var(--yellow);
+        color: #111;
+        padding: 10px 22px;
+        font-weight: 700;
+      }
+      .btn-confirm:hover {
+        background: #f59e0b;
+      }
+      .method-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: rgba(79, 142, 247, 0.15);
+        color: var(--accent);
+      }
+      .platform-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+      .platform-shopee {
+        background: rgba(238, 77, 45, 0.15);
+        color: #ee4d2d;
+      }
+      .platform-tiktok {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+      .count-red {
+        color: var(--red);
+        font-weight: 700;
+      }
 
-    /* ── Data Tables ───────────────────────────────────────── */
-    .dt-search-row {
-      display: flex; gap: 8px; margin-bottom: 14px;
-      flex-wrap: wrap; align-items: center;
-    }
-    .dt-search-input {
-      background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); border-radius: 8px; padding: 7px 12px;
-      font-size: .83rem; outline: none; transition: border-color .2s;
-    }
-    .dt-search-input:focus { border-color: var(--accent); }
-    .dt-wrap { overflow-x: auto; margin-bottom: 4px; }
-    .data-table {
-      width: 100%; border-collapse: collapse;
-      font-size: .82rem; min-width: 560px;
-    }
-    .data-table th {
-      text-align: left; color: var(--muted); font-weight: 700;
-      padding: 9px 12px; border-bottom: 2px solid var(--border);
-      font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
-      white-space: nowrap; background: var(--surface);
-      position: sticky; top: 0; z-index: 1;
-    }
-    .data-table td {
-      padding: 9px 12px;
-      border-bottom: 1px solid rgba(46,51,80,.5);
-      vertical-align: middle;
-    }
-    .data-table tr:last-child td { border-bottom: none; }
-    .data-table tbody tr:hover td { background: rgba(79,142,247,.05); }
-    .dt-cell-sm   { max-width: 40px;  color: var(--muted); }
-    .dt-cell-file { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dt-cell-wrap { white-space: normal; word-break: break-word; max-width: 180px; }
-    .dt-cell-nowrap { white-space: nowrap; }
-    .monospace { font-family: 'Consolas', monospace; font-size: .78rem; color: var(--muted); }
-    .dt-empty   { color: var(--muted); font-size: .85rem; text-align: center; padding: 28px 0; }
-    /* Pagination */
-    .dt-pagination {
-      display: flex; align-items: center; gap: 4px;
-      margin-top: 12px; justify-content: flex-end;
-      font-size: .82rem; flex-wrap: wrap;
-    }
-    .dt-pagination .pg-info {
-      color: var(--muted); margin: 0 8px; font-size: .78rem; white-space: nowrap;
-    }
-    .pg-btn {
-      background: var(--surface2); border: 1px solid var(--border);
-      color: var(--text); border-radius: 6px; padding: 4px 10px;
-      font-size: .78rem; cursor: pointer; transition: background .15s;
-    }
-    .pg-btn:hover:not(:disabled) { background: var(--border); }
-    .pg-btn:disabled { opacity: .35; cursor: not-allowed; }
-    .pg-btn.pg-active { background: var(--accent); border-color: var(--accent); color:#fff; }
-    /* Badges */
-    .count-badge {
-      display: inline-block; font-size: .7rem; font-weight: 600;
-      background: var(--surface2); color: var(--muted);
-      padding: 1px 8px; border-radius: 99px; margin-left: 4px;
-    }
-    .reprint-tag { background: rgba(251,191,36,.15); color: var(--yellow);
-      padding: 2px 8px; border-radius: 99px; font-size: .72rem; font-weight: 700; }
-    .status-ok   { color: var(--green); font-weight: 600; }
-    .status-err  { color: var(--red);   font-weight: 600; }
-  </style>
-</head>
-<body>
-<div class="container">
+      /* ── Data Tables ───────────────────────────────────────── */
+      .dt-search-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .dt-search-input {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 0.83rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .dt-search-input:focus {
+        border-color: var(--accent);
+      }
+      .dt-wrap {
+        overflow-x: auto;
+        margin-bottom: 4px;
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+        min-width: 560px;
+      }
+      .data-table th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 700;
+        padding: 9px 12px;
+        border-bottom: 2px solid var(--border);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        white-space: nowrap;
+        background: var(--surface);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .data-table td {
+        padding: 9px 12px;
+        border-bottom: 1px solid rgba(46, 51, 80, 0.5);
+        vertical-align: middle;
+      }
+      .data-table tr:last-child td {
+        border-bottom: none;
+      }
+      .data-table tbody tr:hover td {
+        background: rgba(79, 142, 247, 0.05);
+      }
+      .dt-cell-sm {
+        max-width: 40px;
+        color: var(--muted);
+      }
+      .dt-cell-file {
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .dt-cell-wrap {
+        white-space: normal;
+        word-break: break-word;
+        max-width: 180px;
+      }
+      .dt-cell-nowrap {
+        white-space: nowrap;
+      }
+      .monospace {
+        font-family: "Consolas", monospace;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .dt-empty {
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+        padding: 28px 0;
+      }
+      /* Pagination */
+      .dt-pagination {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 12px;
+        justify-content: flex-end;
+        font-size: 0.82rem;
+        flex-wrap: wrap;
+      }
+      .dt-pagination .pg-info {
+        color: var(--muted);
+        margin: 0 8px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+      }
+      .pg-btn {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .pg-btn:hover:not(:disabled) {
+        background: var(--border);
+      }
+      .pg-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .pg-btn.pg-active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      /* Badges */
+      .count-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: var(--surface2);
+        color: var(--muted);
+        padding: 1px 8px;
+        border-radius: 99px;
+        margin-left: 4px;
+      }
+      .reprint-tag {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--yellow);
+        padding: 2px 8px;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+      .status-ok {
+        color: var(--green);
+        font-weight: 600;
+      }
+      .status-err {
+        color: var(--red);
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header>
+        <div>🖨️</div>
+        <h1>Print Server</h1>
+        <span class="badge">LAN</span>
+        <div class="server-info" id="server-info">Đang tải...</div>
+      </header>
 
-  <!-- Header -->
-  <header>
-    <div>🖨️</div>
-    <h1>Print Server</h1>
-    <span class="badge">LAN</span>
-    <div class="server-info" id="server-info">Đang tải...</div>
-  </header>
+      <div class="grid">
+        <!-- ── Cột 1: Upload ── -->
+        <div class="card">
+          <div class="card-title">📤 Tải lên file PDF</div>
 
-  <div class="grid">
+          <div id="drop-zone">
+            <div class="icon">📄</div>
+            <p><strong>Kéo thả file PDF vào đây</strong></p>
+            <p style="margin-top: 6px">
+              hoặc <strong>nhấn để chọn file</strong>
+            </p>
+            <input type="file" id="file-input" accept=".pdf" multiple />
+          </div>
 
-    <!-- ── Cột 1: Upload ── -->
-    <div class="card">
-      <div class="card-title">📤 Tải lên file PDF</div>
+          <div id="upload-progress">
+            <p
+              id="upload-msg"
+              style="font-size: 0.82rem; color: var(--muted)"
+            ></p>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+          </div>
 
-        <div id="drop-zone">
-          <div class="icon">📄</div>
-          <p><strong>Kéo thả file PDF vào đây</strong></p>
-          <p style="margin-top:6px;">hoặc <strong>nhấn để chọn file</strong></p>
-          <input type="file" id="file-input" accept=".pdf" multiple />
+          <!-- Upload warning banner (Feature 6) -->
+          <div id="upload-warning-banner">
+            <div class="warn-title">
+              ⚠️ <span id="upload-warn-title-text"></span>
+            </div>
+            <div class="warn-detail" id="upload-warn-summary"></div>
+            <span class="warn-toggle" onclick="toggleUploadWarnList()"
+              >▼ Xem chi tiết</span
+            >
+            <div id="upload-warning-list"></div>
+          </div>
+
+          <!-- Unrecognized pages banner -->
+          <div id="unrecognized-pages-banner">
+            <div class="warn-title">
+              ⛔ <span id="unrecog-title-text"></span>
+            </div>
+            <ul class="unrecog-list" id="unrecog-list"></ul>
+          </div>
         </div>
 
-        <div id="upload-progress">
-          <p id="upload-msg" style="font-size:.82rem;color:var(--muted)"></p>
-          <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+        <!-- ── Cột 2: Điều khiển in ── -->
+        <div class="card">
+          <div class="card-title">🖨️ Điều khiển in</div>
+
+          <div class="field">
+            <label>Máy in</label>
+            <select id="printer-select">
+              <option value="">⏳ Đang tải danh sách máy in...</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Số bản in</label>
+            <input type="number" id="copies" value="1" min="1" max="99" />
+          </div>
+
+          <div class="field" style="margin-bottom: 0">
+            <label>File đã chọn</label>
+            <div
+              id="selected-label"
+              style="font-size: 0.85rem; color: var(--muted); padding: 8px 0"
+            >
+              Chưa chọn file nào
+            </div>
+          </div>
+
+          <button
+            class="btn btn-primary"
+            id="print-btn"
+            disabled
+            onclick="printSelected()"
+          >
+            🖨️ In ngay
+          </button>
         </div>
 
-        <!-- Upload warning banner (Feature 6) -->
-        <div id="upload-warning-banner">
-          <div class="warn-title">⚠️ <span id="upload-warn-title-text"></span></div>
-          <div class="warn-detail" id="upload-warn-summary"></div>
-          <span class="warn-toggle" onclick="toggleUploadWarnList()">▼ Xem chi tiết</span>
-          <div id="upload-warning-list"></div>
+        <!-- ── PDF Preview (full width) ── -->
+        <div class="card full-col" id="preview-wrap" style="display: none">
+          <div class="card-title">👁️ Xem trước PDF</div>
+          <iframe id="pdf-iframe" src=""></iframe>
         </div>
+      </div>
+      <!-- /.grid -->
 
-        <!-- Unrecognized pages banner -->
-        <div id="unrecognized-pages-banner">
-          <div class="warn-title">⛔ <span id="unrecog-title-text"></span></div>
-          <ul class="unrecog-list" id="unrecog-list"></ul>
+      <!-- ══ Bảng File đã upload (DB) ═══════════════════════════════════════ -->
+      <div class="card" style="margin-top: 20px" id="card-uploads">
+        <div class="card-title" style="justify-content: space-between">
+          <span
+            >📂 File đã upload
+            <span class="count-badge" id="up-count">…</span></span
+          >
+          <button
+            class="btn btn-danger"
+            onclick="loadUploadsTable(1)"
+            style="padding: 4px 12px"
+          >
+            ↻ Làm mới
+          </button>
         </div>
-    </div>
-
-    <!-- ── Cột 2: Điều khiển in ── -->
-    <div class="card">
-      <div class="card-title">🖨️ Điều khiển in</div>
-
-      <div class="field">
-        <label>Máy in</label>
-        <select id="printer-select">
-          <option value="">⏳ Đang tải danh sách máy in...</option>
-        </select>
+        <div class="dt-search-row">
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 160px"
+            type="text"
+            id="up-q"
+            placeholder="🔍 Tên file…"
+            oninput="debouncedSearch('uploads')"
+          />
+          <input
+            class="dt-search-input"
+            style="flex: 1; min-width: 110px"
+            type="text"
+            id="up-ip"
+            placeholder="IP upload…"
+            oninput="debouncedSearch('uploads')"
+          />
+          <button class="btn btn-save" onclick="loadUploadsTable(1)">
+            Tìm
+          </button>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="uploads-per-page"
+            onchange="loadUploadsTable(1)"
+          >
+            <option value="20">20 / trang</option>
+            <option value="50">50 / trang</option>
+            <option value="100">100 / trang</option>
+          </select>
+        </div>
+        <div class="dt-wrap" id="uploads-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tên file</th>
+                <th>IP upload</th>
+                <th>Kích thước</th>
+                <th>Đơn hàng</th>
+                <th>Thời gian</th>
+                <th>Trạng thái in</th>
+                <th>Ghi chú</th>
+                <th>ID</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="up-tbody">
+              <tr>
+                <td colspan="9" class="dt-empty">Đang tải…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dt-pagination" id="up-pg"></div>
       </div>
 
-      <div class="field">
-        <label>Số bản in</label>
-        <input type="number" id="copies" value="1" min="1" max="99" />
+      <!-- ══ Bảng Lịch sử in (DB) ════════════════════════════════════════════ -->
+      <div class="card" style="margin-top: 20px" id="card-prints">
+        <div class="card-title" style="justify-content: space-between">
+          <span
+            >🖨️ Lịch sử in
+            <span class="count-badge" id="pr-count">…</span></span
+          >
+          <button
+            class="btn btn-danger"
+            onclick="loadPrintsTable(1)"
+            style="padding: 4px 12px"
+          >
+            ↻ Làm mới
+          </button>
+        </div>
+        <div class="dt-search-row">
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 160px"
+            type="text"
+            id="pr-q"
+            placeholder="🔍 Tên file…"
+            oninput="debouncedSearch('prints')"
+          />
+          <input
+            class="dt-search-input"
+            style="flex: 1; min-width: 120px"
+            type="text"
+            id="pr-printer"
+            placeholder="Máy in…"
+            oninput="debouncedSearch('prints')"
+          />
+          <input
+            class="dt-search-input"
+            style="flex: 1; min-width: 100px"
+            type="text"
+            id="pr-ip"
+            placeholder="IP…"
+            oninput="debouncedSearch('prints')"
+          />
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="pr-status"
+            onchange="loadPrintsTable(1)"
+          >
+            <option value="">Tất cả TT</option>
+            <option value="success">Thành công</option>
+            <option value="error">Lỗi</option>
+          </select>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="pr-reprint"
+            onchange="loadPrintsTable(1)"
+          >
+            <option value="">Tất cả loại</option>
+            <option value="1">In lại</option>
+            <option value="0">In mới</option>
+          </select>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="prints-per-page"
+            onchange="loadPrintsTable(1)"
+          >
+            <option value="20">20 / trang</option>
+            <option value="50">50 / trang</option>
+            <option value="100">100 / trang</option>
+          </select>
+        </div>
+        <div class="dt-wrap" id="prints-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tên file</th>
+                <th>Máy in</th>
+                <th>IP</th>
+                <th>Bản</th>
+                <th>Loại</th>
+                <th>Đơn hàng</th>
+                <th>Trạng thái</th>
+                <th>Thời gian</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody id="pr-tbody">
+              <tr>
+                <td colspan="9" class="dt-empty">Đang tải…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dt-pagination" id="pr-pg"></div>
       </div>
 
-      <div class="field" style="margin-bottom:0">
-        <label>File đã chọn</label>
-        <div id="selected-label" style="font-size:.85rem;color:var(--muted);padding:8px 0;">
-          Chưa chọn file nào
+      <!-- ══ Bảng Đơn hàng đã in (DB) ════════════════════════════════════════ -->
+      <div class="card" style="margin-top: 20px" id="card-orders">
+        <div class="card-title" style="justify-content: space-between">
+          <span
+            >📦 Đơn hàng đã in
+            <span class="count-badge" id="or-count">…</span></span
+          >
+          <button
+            class="btn btn-danger"
+            onclick="loadOrdersTable(1)"
+            style="padding: 4px 12px"
+          >
+            ↻ Làm mới
+          </button>
+        </div>
+        <div class="dt-search-row">
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 160px"
+            type="text"
+            id="or-sn"
+            placeholder="🔍 Mã đơn hàng…"
+            oninput="debouncedSearch('orders')"
+          />
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 140px"
+            type="text"
+            id="or-shop"
+            placeholder="Tên shop…"
+            oninput="debouncedSearch('orders')"
+          />
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="or-platform"
+            onchange="loadOrdersTable(1)"
+          >
+            <option value="">Tất cả nền tảng</option>
+            <option value="shopee">Shopee</option>
+            <option value="tiktok">TikTok</option>
+            <option value="lazada">Lazada</option>
+          </select>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="or-method"
+            onchange="loadOrdersTable(1)"
+          >
+            <option value="">ĐVVC tất cả</option>
+            <option value="SPX">SPX</option>
+            <option value="GHN">GHN</option>
+            <option value="JT">J&amp;T</option>
+            <option value="VTP">VTP</option>
+          </select>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="orders-per-page"
+            onchange="loadOrdersTable(1)"
+          >
+            <option value="50">50 / trang</option>
+            <option value="100">100 / trang</option>
+            <option value="200">200 / trang</option>
+          </select>
+        </div>
+        <div class="dt-wrap" id="orders-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Mã đơn</th>
+                <th>Shop</th>
+                <th>Nền tảng</th>
+                <th>ĐVVC</th>
+                <th>Số lần in</th>
+                <th>File</th>
+                <th>Lần in cuối</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody id="or-tbody">
+              <tr>
+                <td colspan="8" class="dt-empty">Đang tải…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dt-pagination" id="or-pg"></div>
+      </div>
+    </div>
+    <!-- /.container -->
+
+    <!-- Reprint Warning Modal (Feature 4 & 5) -->
+    <div id="reprint-modal" class="modal-overlay" style="display: none">
+      <div class="modal-box">
+        <div class="modal-header">⚠️ Cảnh báo In Lại</div>
+
+        <!-- Cảnh báo file đã in -->
+        <div id="modal-file-warning" style="display: none"></div>
+
+        <!-- Bảng đơn trùng -->
+        <div id="modal-order-table" style="display: none"></div>
+
+        <!-- Danh sách trang không nhận dạng được -->
+        <div id="modal-unrecognized" style="display: none"></div>
+
+        <!-- Lý do bắt buộc -->
+        <div class="modal-reason">
+          <label for="reprint-reason-input">
+            Lý do in lại <span style="color: var(--red)">*</span>
+          </label>
+          <input
+            type="text"
+            id="reprint-reason-input"
+            placeholder="Nhập lý do in lại..."
+            oninput="this.classList.remove('input-err')"
+            onkeydown="if (event.key === 'Enter') confirmReprint();"
+          />
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-danger" onclick="closeReprintModal()">
+            ❌ Hủy
+          </button>
+          <button class="btn btn-confirm" onclick="confirmReprint()">
+            ✅ Xác nhận In Lại
+          </button>
         </div>
       </div>
-
-      <button class="btn btn-primary" id="print-btn" disabled onclick="printSelected()">
-        🖨️ In ngay
-      </button>
     </div>
 
-    <!-- ── PDF Preview (full width) ── -->
-    <div class="card full-col" id="preview-wrap" style="display:none">
-      <div class="card-title">👁️ Xem trước PDF</div>
-      <iframe id="pdf-iframe" src=""></iframe>
-    </div>
+    <!-- Toast -->
+    <div id="toast"></div>
 
-  </div><!-- /.grid -->
+    <script>
+      /* ── State ────────────────────────────────────────────────── */
+      let selectedFile = null;
 
-  <!-- ══ Bảng File đã upload (DB) ═══════════════════════════════════════ -->
-  <div class="card" style="margin-top:20px" id="card-uploads">
-    <div class="card-title" style="justify-content:space-between">
-      <span>📂 File đã upload <span class="count-badge" id="up-count">…</span></span>
-      <button class="btn btn-danger" onclick="loadUploadsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
-    </div>
-    <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="up-q"
-             placeholder="🔍 Tên file…" oninput="debouncedSearch('uploads')" />
-      <input class="dt-search-input" style="flex:1;min-width:110px" type="text" id="up-ip"
-             placeholder="IP upload…" oninput="debouncedSearch('uploads')" />
-      <button class="btn btn-save" onclick="loadUploadsTable(1)">Tìm</button>
-      <select class="dt-search-input" style="width:auto" id="uploads-per-page" onchange="loadUploadsTable(1)">
-        <option value="20">20 / trang</option>
-        <option value="50">50 / trang</option>
-        <option value="100">100 / trang</option>
-      </select>
-    </div>
-    <div class="dt-wrap" id="uploads-table-wrap">
-      <table class="data-table">
-        <thead><tr>
-          <th>Tên file</th><th>IP upload</th><th>Kích thước</th><th>Đơn hàng</th><th>Thời gian</th><th>Trạng thái in</th><th>Ghi chú</th><th>ID</th><th></th>
-        </tr></thead>
-        <tbody id="up-tbody"><tr><td colspan="9" class="dt-empty">Đang tải…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="dt-pagination" id="up-pg"></div>
-  </div>
+      /* ── Toast ────────────────────────────────────────────────── */
+      let _toastTimer = null;
+      function toast(msg, type = "info") {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.className = `show ${type}`;
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => {
+          el.className = "";
+        }, 3500);
+      }
 
-  <!-- ══ Bảng Lịch sử in (DB) ════════════════════════════════════════════ -->
-  <div class="card" style="margin-top:20px" id="card-prints">
-    <div class="card-title" style="justify-content:space-between">
-      <span>🖨️ Lịch sử in <span class="count-badge" id="pr-count">…</span></span>
-      <button class="btn btn-danger" onclick="loadPrintsTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
-    </div>
-    <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="pr-q"
-             placeholder="🔍 Tên file…" oninput="debouncedSearch('prints')" />
-      <input class="dt-search-input" style="flex:1;min-width:120px" type="text" id="pr-printer"
-             placeholder="Máy in…" oninput="debouncedSearch('prints')" />
-      <input class="dt-search-input" style="flex:1;min-width:100px" type="text" id="pr-ip"
-             placeholder="IP…" oninput="debouncedSearch('prints')" />
-      <select class="dt-search-input" style="width:auto" id="pr-status" onchange="loadPrintsTable(1)">
-        <option value="">Tất cả TT</option>
-        <option value="success">Thành công</option>
-        <option value="error">Lỗi</option>
-      </select>
-      <select class="dt-search-input" style="width:auto" id="pr-reprint" onchange="loadPrintsTable(1)">
-        <option value="">Tất cả loại</option>
-        <option value="1">In lại</option>
-        <option value="0">In mới</option>
-      </select>
-      <select class="dt-search-input" style="width:auto" id="prints-per-page" onchange="loadPrintsTable(1)">
-        <option value="20">20 / trang</option>
-        <option value="50">50 / trang</option>
-        <option value="100">100 / trang</option>
-      </select>
-    </div>
-    <div class="dt-wrap" id="prints-table-wrap">
-      <table class="data-table">
-        <thead><tr>
-          <th>Tên file</th><th>Máy in</th><th>IP</th><th>Bản</th><th>Loại</th><th>Đơn hàng</th><th>Trạng thái</th><th>Thời gian</th><th>ID</th>
-        </tr></thead>
-        <tbody id="pr-tbody"><tr><td colspan="9" class="dt-empty">Đang tải…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="dt-pagination" id="pr-pg"></div>
-  </div>
+      /* ── Server info ──────────────────────────────────────────── */
+      async function loadServerInfo() {
+        try {
+          const r = await fetch("/api/info");
+          const d = await r.json();
+          document.getElementById("server-info").innerHTML =
+            `IP LAN: <span>${d.ip}</span> &nbsp;|&nbsp; Port: <span>${d.port}</span>`;
+        } catch {
+          /* ignore */
+        }
+      }
 
-  <!-- ══ Bảng Đơn hàng đã in (DB) ════════════════════════════════════════ -->
-  <div class="card" style="margin-top:20px" id="card-orders">
-    <div class="card-title" style="justify-content:space-between">
-      <span>📦 Đơn hàng đã in <span class="count-badge" id="or-count">…</span></span>
-      <button class="btn btn-danger" onclick="loadOrdersTable(1)" style="padding:4px 12px;">↻ Làm mới</button>
-    </div>
-    <div class="dt-search-row">
-      <input class="dt-search-input" style="flex:2;min-width:160px" type="text" id="or-sn"
-             placeholder="🔍 Mã đơn hàng…" oninput="debouncedSearch('orders')" />
-      <input class="dt-search-input" style="flex:2;min-width:140px" type="text" id="or-shop"
-             placeholder="Tên shop…" oninput="debouncedSearch('orders')" />
-      <select class="dt-search-input" style="width:auto" id="or-platform" onchange="loadOrdersTable(1)">
-        <option value="">Tất cả nền tảng</option>
-        <option value="shopee">Shopee</option>
-        <option value="tiktok">TikTok</option>
-        <option value="lazada">Lazada</option>
-      </select>
-      <select class="dt-search-input" style="width:auto" id="or-method" onchange="loadOrdersTable(1)">
-        <option value="">ĐVVC tất cả</option>
-        <option value="SPX">SPX</option>
-        <option value="GHN">GHN</option>
-        <option value="JT">J&amp;T</option>
-        <option value="VTP">VTP</option>
-      </select>
-      <select class="dt-search-input" style="width:auto" id="orders-per-page" onchange="loadOrdersTable(1)">
-        <option value="50">50 / trang</option>
-        <option value="100">100 / trang</option>
-        <option value="200">200 / trang</option>
-      </select>
-    </div>
-    <div class="dt-wrap" id="orders-table-wrap">
-      <table class="data-table">
-        <thead><tr>
-          <th>Mã đơn</th><th>Shop</th><th>Nền tảng</th><th>ĐVVC</th><th>Số lần in</th><th>File</th><th>Lần in cuối</th><th>ID</th>
-        </tr></thead>
-        <tbody id="or-tbody"><tr><td colspan="8" class="dt-empty">Đang tải…</td></tr></tbody>
-      </table>
-    </div>
-    <div class="dt-pagination" id="or-pg"></div>
-  </div>
+      /* ── Printers ─────────────────────────────────────────────── */
+      async function loadPrinters() {
+        try {
+          const r = await fetch("/api/printers");
+          const d = await r.json();
+          const sel = document.getElementById("printer-select");
+          sel.innerHTML = "";
 
-</div><!-- /.container -->
+          if (!d.printers.length) {
+            sel.innerHTML = '<option value="">Không tìm thấy máy in</option>';
+            return;
+          }
+          d.printers.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = p.id; // tên thật – dùng khi gửi lệnh in
+            opt.textContent = p.label + " → " + p.id; // tên hiển thị (alias hoặc tên gốc)
+            if (p.id === d.default) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        } catch (e) {
+          document.getElementById("printer-select").innerHTML =
+            '<option value="">Lỗi tải máy in</option>';
+        }
+      }
 
-<!-- Reprint Warning Modal (Feature 4 & 5) -->
-<div id="reprint-modal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <div class="modal-header">⚠️ Cảnh báo In Lại</div>
+      /* ── File list ────────────────────────────────────────────── */
+      async function refreshFiles() {
+        const r = await fetch("/api/files");
+        const d = await r.json();
+        const list = document.getElementById("file-list");
 
-    <!-- Cảnh báo file đã in -->
-    <div id="modal-file-warning" style="display:none"></div>
+        if (!d.files.length) {
+          list.innerHTML = '<div class="file-empty">Chưa có file nào.</div>';
+          return;
+        }
 
-    <!-- Bảng đơn trùng -->
-    <div id="modal-order-table" style="display:none"></div>
-
-    <!-- Danh sách trang không nhận dạng được -->
-    <div id="modal-unrecognized" style="display:none"></div>
-
-    <!-- Lý do bắt buộc -->
-    <div class="modal-reason">
-      <label for="reprint-reason-input">
-        Lý do in lại <span style="color:var(--red)">*</span>
-      </label>
-      <input type="text" id="reprint-reason-input"
-             placeholder="Nhập lý do in lại..."
-             oninput="this.classList.remove('input-err')"
-             onkeydown="if(event.key==='Enter') confirmReprint()" />
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-danger" onclick="closeReprintModal()">❌ Hủy</button>
-      <button class="btn btn-confirm" onclick="confirmReprint()">✅ Xác nhận In Lại</button>
-    </div>
-  </div>
-</div>
-
-<!-- Toast -->
-<div id="toast"></div>
-
-<script>
-/* ── State ────────────────────────────────────────────────── */
-let selectedFile = null;
-
-/* ── Toast ────────────────────────────────────────────────── */
-let _toastTimer = null;
-function toast(msg, type = 'info') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `show ${type}`;
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { el.className = ''; }, 3500);
-}
-
-/* ── Server info ──────────────────────────────────────────── */
-async function loadServerInfo() {
-  try {
-    const r = await fetch('/api/info');
-    const d = await r.json();
-    document.getElementById('server-info').innerHTML =
-      `IP LAN: <span>${d.ip}</span> &nbsp;|&nbsp; Port: <span>${d.port}</span>`;
-  } catch { /* ignore */ }
-}
-
-/* ── Printers ─────────────────────────────────────────────── */
-async function loadPrinters() {
-  try {
-    const r = await fetch('/api/printers');
-    const d = await r.json();
-    const sel = document.getElementById('printer-select');
-    sel.innerHTML = '';
-
-    if (!d.printers.length) {
-      sel.innerHTML = '<option value="">Không tìm thấy máy in</option>';
-      return;
-    }
-    d.printers.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value       = p.id;      // tên thật – dùng khi gửi lệnh in
-      opt.textContent = p.label + " → " + p.id;   // tên hiển thị (alias hoặc tên gốc)
-      if (p.id === d.default) opt.selected = true;
-      sel.appendChild(opt);
-    });
-  } catch (e) {
-    document.getElementById('printer-select').innerHTML =
-      '<option value="">Lỗi tải máy in</option>';
-  }
-}
-
-/* ── File list ────────────────────────────────────────────── */
-async function refreshFiles() {
-  const r = await fetch('/api/files');
-  const d = await r.json();
-  const list = document.getElementById('file-list');
-
-  if (!d.files.length) {
-    list.innerHTML = '<div class="file-empty">Chưa có file nào.</div>';
-    return;
-  }
-
-  list.innerHTML = d.files.map(f => {
-    const noteBadge = (f.note_items && f.note_items.length > 0)
-      ? `<div class="file-note">⛔ ${f.note_items.length} trang chưa nhận diện</div>`
-      : '';
-    return `
-    <div class="file-item ${selectedFile === f.name ? 'selected' : ''}" onclick="selectFile('${f.name}')" data-name="${f.name}">
+        list.innerHTML = d.files
+          .map((f) => {
+            const noteBadge =
+              f.note_items && f.note_items.length > 0
+                ? `<div class="file-note">⛔ ${f.note_items.length} trang chưa nhận diện</div>`
+                : "";
+            return `
+    <div class="file-item ${selectedFile === f.name ? "selected" : ""}" onclick="selectFile('${f.name}')" data-name="${f.name}">
       <div class="file-icon">📄</div>
       <div class="file-info">
         <div class="file-name">${f.name}</div>
@@ -724,136 +1311,166 @@ async function refreshFiles() {
       <button class="btn btn-danger"
               onclick="event.stopPropagation(); deleteFile('${f.name}')">🗑</button>
     </div>
-  `;}).join('');
-}
-
-function selectFile(name) {
-  selectedFile = name;
-  document.getElementById('selected-label').textContent = name;
-  document.getElementById('print-btn').disabled = false;
-
-  // Highlight
-  document.querySelectorAll('.file-item').forEach(el => {
-    el.classList.toggle('selected', el.dataset.name === name);
-  });
-
-  // Preview
-  const wrap = document.getElementById('preview-wrap');
-  const iframe = document.getElementById('pdf-iframe');
-  iframe.src = `/api/files/${encodeURIComponent(name)}`;
-  wrap.style.display = 'block';
-}
-
-async function deleteFile(name) {
-  if (!confirm(`Xóa file "${name}"?`)) return;
-  const r = await fetch(`/api/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
-  const d = await r.json();
-  if (d.ok) {
-    toast('Đã xóa file.', 'ok');
-    if (selectedFile === name) {
-      selectedFile = null;
-      document.getElementById('selected-label').textContent = 'Chưa chọn file nào';
-      document.getElementById('print-btn').disabled = true;
-      document.getElementById('preview-wrap').style.display = 'none';
-    }
-    refreshFiles();
-  } else {
-    toast(d.error, 'err');
-  }
-}
-
-/* ── Upload ───────────────────────────────────────────────── */
-const dropZone  = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
-
-dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => uploadFiles([...fileInput.files]));
-
-dropZone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropZone.classList.add('drag-over');
-});
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
-  if (!files.length) { toast('Chỉ chấp nhận file PDF!', 'err'); return; }
-  uploadFiles(files);
-});
-
-async function uploadFiles(files) {
-  if (!files.length) return;
-
-  const progressWrap = document.getElementById('upload-progress');
-  const progressBar  = document.getElementById('progress-bar');
-  const uploadMsg    = document.getElementById('upload-msg');
-
-  progressWrap.style.display = 'block';
-  progressBar.style.width    = '0%';
-  document.getElementById('upload-warning-banner').style.display = 'none';
-
-  let done = 0;
-  let allWarnings = [];
-  let allUnrecognized = [];
-  for (const file of files) {
-    uploadMsg.textContent = `Đang tải: ${file.name} (${done + 1}/${files.length})`;
-    const fd = new FormData();
-    fd.append('file', file);
-
-    try {
-      const r = await fetch('/api/upload', { method: 'POST', body: fd });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.error);
-      done++;
-      progressBar.style.width = `${Math.round(done / files.length * 100)}%`;
-      // Thu thập cảnh báo upload
-      if (d.upload_warnings && d.upload_warnings.length > 0) {
-        allWarnings.push({ filename: d.filename, warnings: d.upload_warnings });
+  `;
+          })
+          .join("");
       }
-      // Thu thập trang không nhận dạng được
-      if (d.unrecognized_pages && d.unrecognized_pages.length > 0) {
-        allUnrecognized.push({ filename: d.filename, pages: d.unrecognized_pages });
+
+      function selectFile(name) {
+        selectedFile = name;
+        document.getElementById("selected-label").textContent = name;
+        document.getElementById("print-btn").disabled = false;
+
+        // Highlight
+        document.querySelectorAll(".file-item").forEach((el) => {
+          el.classList.toggle("selected", el.dataset.name === name);
+        });
+
+        // Preview
+        const wrap = document.getElementById("preview-wrap");
+        const iframe = document.getElementById("pdf-iframe");
+        iframe.src = `/api/files/${encodeURIComponent(name)}`;
+        wrap.style.display = "block";
       }
-    } catch (e) {
-      toast(`Lỗi upload ${file.name}: ${e.message}`, 'err');
-    }
-  }
 
-  uploadMsg.textContent = `✅ Đã tải lên ${done}/${files.length} file.`;
-  setTimeout(() => { progressWrap.style.display = 'none'; fileInput.value = ''; }, 2000);
-  toast(`Upload thành công ${done} file!`, 'ok');
-  if (allWarnings.length > 0) showUploadWarnings(allWarnings);
-  if (allUnrecognized.length > 0) showUnrecognizedPages(allUnrecognized);
-  refreshFiles();
-}
+      async function deleteFile(name) {
+        if (!confirm(`Xóa file "${name}"?`)) return;
+        const r = await fetch(`/api/files/${encodeURIComponent(name)}`, {
+          method: "DELETE",
+        });
+        const d = await r.json();
+        if (d.ok) {
+          toast("Đã xóa file.", "ok");
+          if (selectedFile === name) {
+            selectedFile = null;
+            document.getElementById("selected-label").textContent =
+              "Chưa chọn file nào";
+            document.getElementById("print-btn").disabled = true;
+            document.getElementById("preview-wrap").style.display = "none";
+          }
+          refreshFiles();
+        } else {
+          toast(d.error, "err");
+        }
+      }
 
-function showUploadWarnings(warningsList) {
-  let totalDups = 0;
-  warningsList.forEach(w => totalDups += w.warnings.length);
+      /* ── Upload ───────────────────────────────────────────────── */
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
 
-  document.getElementById('upload-warn-title-text').textContent =
-    `${totalDups} đơn hàng trong file vừa upload đã được in trước đó`;
-  document.getElementById('upload-warn-summary').textContent =
-    warningsList.map(w => `• ${w.filename}: ${w.warnings.length} đơn`).join('  ');
+      dropZone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () =>
+        uploadFiles([...fileInput.files]),
+      );
 
-  // Build chi tiết
-  let rows = '';
-  for (const wf of warningsList) {
-    for (const o of wf.warnings) {
-      const platCls = o.platform === 'shopee' ? 'platform-shopee' : o.platform === 'tiktok' ? 'platform-tiktok' : '';
-      rows += `
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+      dropZone.addEventListener("dragleave", () =>
+        dropZone.classList.remove("drag-over"),
+      );
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+        const files = [...e.dataTransfer.files].filter(
+          (f) => f.type === "application/pdf",
+        );
+        if (!files.length) {
+          toast("Chỉ chấp nhận file PDF!", "err");
+          return;
+        }
+        uploadFiles(files);
+      });
+
+      async function uploadFiles(files) {
+        if (!files.length) return;
+
+        const progressWrap = document.getElementById("upload-progress");
+        const progressBar = document.getElementById("progress-bar");
+        const uploadMsg = document.getElementById("upload-msg");
+
+        progressWrap.style.display = "block";
+        progressBar.style.width = "0%";
+        document.getElementById("upload-warning-banner").style.display = "none";
+
+        let done = 0;
+        let allWarnings = [];
+        let allUnrecognized = [];
+        for (const file of files) {
+          uploadMsg.textContent = `Đang tải: ${file.name} (${done + 1}/${files.length})`;
+          const fd = new FormData();
+          fd.append("file", file);
+
+          try {
+            const r = await fetch("/api/upload", { method: "POST", body: fd });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            done++;
+            progressBar.style.width = `${Math.round((done / files.length) * 100)}%`;
+            // Thu thập cảnh báo upload
+            if (d.upload_warnings && d.upload_warnings.length > 0) {
+              allWarnings.push({
+                filename: d.filename,
+                warnings: d.upload_warnings,
+              });
+            }
+            // Thu thập trang không nhận dạng được
+            if (d.unrecognized_pages && d.unrecognized_pages.length > 0) {
+              allUnrecognized.push({
+                filename: d.filename,
+                pages: d.unrecognized_pages,
+              });
+            }
+          } catch (e) {
+            toast(`Lỗi upload ${file.name}: ${e.message}`, "err");
+          }
+        }
+
+        uploadMsg.textContent = `✅ Đã tải lên ${done}/${files.length} file.`;
+        setTimeout(() => {
+          progressWrap.style.display = "none";
+          fileInput.value = "";
+        }, 2000);
+        toast(`Upload thành công ${done} file!`, "ok");
+        if (allWarnings.length > 0) showUploadWarnings(allWarnings);
+        if (allUnrecognized.length > 0) showUnrecognizedPages(allUnrecognized);
+        refreshFiles();
+      }
+
+      function showUploadWarnings(warningsList) {
+        let totalDups = 0;
+        warningsList.forEach((w) => (totalDups += w.warnings.length));
+
+        document.getElementById("upload-warn-title-text").textContent =
+          `${totalDups} đơn hàng trong file vừa upload đã được in trước đó`;
+        document.getElementById("upload-warn-summary").textContent =
+          warningsList
+            .map((w) => `• ${w.filename}: ${w.warnings.length} đơn`)
+            .join("  ");
+
+        // Build chi tiết
+        let rows = "";
+        for (const wf of warningsList) {
+          for (const o of wf.warnings) {
+            const platCls =
+              o.platform === "shopee"
+                ? "platform-shopee"
+                : o.platform === "tiktok"
+                  ? "platform-tiktok"
+                  : "";
+            rows += `
         <tr>
           <td>${o.order_sn}</td>
-          <td>${o.shop_name || '-'}</td>
-          <td><span class="platform-badge ${platCls}">${o.platform || '-'}</span></td>
-          <td><span class="method-badge">${o.delivery_method || '-'}</span></td>
+          <td>${o.shop_name || "-"}</td>
+          <td><span class="platform-badge ${platCls}">${o.platform || "-"}</span></td>
+          <td><span class="method-badge">${o.delivery_method || "-"}</span></td>
           <td class="count-red">${o.print_count}</td>
-          <td>${o.last_print_time || '-'}</td>
+          <td>${o.last_print_time || "-"}</td>
         </tr>`;
-    }
-  }
-  document.getElementById('upload-warning-list').innerHTML = `
+          }
+        }
+        document.getElementById("upload-warning-list").innerHTML = `
     <div class="table-wrap" style="margin-top:8px">
       <table class="warn-table">
         <thead><tr>
@@ -864,115 +1481,128 @@ function showUploadWarnings(warningsList) {
       </table>
     </div>`;
 
-  document.getElementById('upload-warning-list').style.display = 'none';
-  document.getElementById('upload-warning-banner').style.display = 'block';
-}
+        document.getElementById("upload-warning-list").style.display = "none";
+        document.getElementById("upload-warning-banner").style.display =
+          "block";
+      }
 
-function toggleUploadWarnList() {
-  const el  = document.getElementById('upload-warning-list');
-  const tog = document.querySelector('.warn-toggle');
-  const shown = el.style.display !== 'none';
-  el.style.display  = shown ? 'none' : 'block';
-  tog.textContent   = shown ? '▼ Xem chi tiết' : '▲ Ẩn chi tiết';
-}
+      function toggleUploadWarnList() {
+        const el = document.getElementById("upload-warning-list");
+        const tog = document.querySelector(".warn-toggle");
+        const shown = el.style.display !== "none";
+        el.style.display = shown ? "none" : "block";
+        tog.textContent = shown ? "▼ Xem chi tiết" : "▲ Ẩn chi tiết";
+      }
 
-function showUnrecognizedPages(unrecognizedList) {
-  let totalPages = 0;
-  unrecognizedList.forEach(u => totalPages += u.pages.length);
+      function showUnrecognizedPages(unrecognizedList) {
+        let totalPages = 0;
+        unrecognizedList.forEach((u) => (totalPages += u.pages.length));
 
-  document.getElementById('unrecog-title-text').textContent =
-    `Danh sách đơn chưa nhận diện (${totalPages} trang)`;
+        document.getElementById("unrecog-title-text").textContent =
+          `Danh sách đơn chưa nhận diện (${totalPages} trang)`;
 
-  let items = '';
-  for (const uf of unrecognizedList) {
-    for (const p of uf.pages) {
-      const dvvc = p.delivery_method || 'Không rõ ĐVVC';
-      const sn   = p.order_sn        || '—';
-      items += `<li>📄 <strong>${escHtml(uf.filename)}</strong>: Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
-    }
-  }
-  document.getElementById('unrecog-list').innerHTML = items;
-  document.getElementById('unrecognized-pages-banner').style.display = 'block';
-}
+        let items = "";
+        for (const uf of unrecognizedList) {
+          for (const p of uf.pages) {
+            const dvvc = p.delivery_method || "Không rõ ĐVVC";
+            const sn = p.order_sn || "—";
+            items += `<li>📄 <strong>${escHtml(uf.filename)}</strong>: Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
+          }
+        }
+        document.getElementById("unrecog-list").innerHTML = items;
+        document.getElementById("unrecognized-pages-banner").style.display =
+          "block";
+      }
 
-/* ── Print (2-step: check → modal or direct) ──────────────── */
-let _pendingPrint = null;   // { printer, copies } khi đang chờ nhập lý do
+      /* ── Print (2-step: check → modal or direct) ──────────────── */
+      let _pendingPrint = null; // { printer, copies } khi đang chờ nhập lý do
 
-async function printSelected() {
-  if (!selectedFile) { toast('Vui lòng chọn file cần in.', 'err'); return; }
+      async function printSelected() {
+        if (!selectedFile) {
+          toast("Vui lòng chọn file cần in.", "err");
+          return;
+        }
 
-  const printer = document.getElementById('printer-select').value;
-  const copies  = parseInt(document.getElementById('copies').value) || 1;
-  const btn     = document.getElementById('print-btn');
+        const printer = document.getElementById("printer-select").value;
+        const copies = parseInt(document.getElementById("copies").value) || 1;
+        const btn = document.getElementById("print-btn");
 
-  btn.disabled  = true;
-  btn.innerHTML = '<span class="spinner"></span> Đang kiểm tra...';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Đang kiểm tra...';
 
-  try {
-    // Bước 1: kiểm tra cảnh báo
-    const chkRes  = await fetch('/api/print/check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: selectedFile }),
-    });
-    const chkData = await chkRes.json();
+        try {
+          // Bước 1: kiểm tra cảnh báo
+          const chkRes = await fetch("/api/print/check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: selectedFile }),
+          });
+          const chkData = await chkRes.json();
 
-    if (!chkData.ok) { toast(`❌ ${chkData.error}`, 'err'); return; }
+          if (!chkData.ok) {
+            toast(`❌ ${chkData.error}`, "err");
+            return;
+          }
 
-    if (chkData.has_warnings) {
-      showReprintModal(chkData, printer, copies);
-      return;   // dừng — đợi người dùng xác nhận trong modal
-    }
+          if (chkData.has_warnings) {
+            showReprintModal(chkData, printer, copies);
+            return; // dừng — đợi người dùng xác nhận trong modal
+          }
 
-    // Không có cảnh báo → in luôn
-    await doPrint(selectedFile, printer, copies, false, '');
+          // Không có cảnh báo → in luôn
+          await doPrint(selectedFile, printer, copies, false, "");
+        } catch (e) {
+          toast(`❌ Lỗi kết nối: ${e.message}`, "err");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = "🖨️ In ngay";
+        }
+      }
 
-  } catch (e) {
-    toast(`❌ Lỗi kết nối: ${e.message}`, 'err');
-  } finally {
-    btn.disabled  = false;
-    btn.innerHTML = '🖨️ In ngay';
-  }
-}
+      function showReprintModal(chkData, printer, copies) {
+        _pendingPrint = { printer, copies };
 
-function showReprintModal(chkData, printer, copies) {
-  _pendingPrint = { printer, copies };
-
-  // ─ Cảnh báo file đã in ────────────────────────────────────────────────────
-  const fileWarnEl = document.getElementById('modal-file-warning');
-  if (chkData.file_warnings) {
-    const fw = chkData.file_warnings;
-    fileWarnEl.style.display = 'block';
-    fileWarnEl.innerHTML = `
+        // ─ Cảnh báo file đã in ────────────────────────────────────────────────────
+        const fileWarnEl = document.getElementById("modal-file-warning");
+        if (chkData.file_warnings) {
+          const fw = chkData.file_warnings;
+          fileWarnEl.style.display = "block";
+          fileWarnEl.innerHTML = `
       <div class="modal-warn-block">
         📄 File <strong>${escHtml(selectedFile)}</strong>
         đã được in <span class="count-red">${fw.print_count} lần</span>
-        ${fw.last_print_time ? `&nbsp;·&nbsp; Lần cuối: <strong>${fw.last_print_time} UTC</strong>` : ''}
-        ${fw.last_printer   ? `&nbsp;·&nbsp; Máy: <em>${escHtml(fw.last_printer)}</em>` : ''}
+        ${fw.last_print_time ? `&nbsp;·&nbsp; Lần cuối: <strong>${fw.last_print_time} UTC</strong>` : ""}
+        ${fw.last_printer ? `&nbsp;·&nbsp; Máy: <em>${escHtml(fw.last_printer)}</em>` : ""}
       </div>`;
-  } else {
-    fileWarnEl.style.display = 'none';
-  }
+        } else {
+          fileWarnEl.style.display = "none";
+        }
 
-  // ─ Bảng các đơn trùng ─────────────────────────────────────────────────────
-  const orderTableEl = document.getElementById('modal-order-table');
-  const ows = chkData.order_warnings || [];
-  if (ows.length > 0) {
-    orderTableEl.style.display = 'block';
-    const rows = ows.map(o => {
-      const platCls = o.platform === 'shopee' ? 'platform-shopee'
-                    : o.platform === 'tiktok' ? 'platform-tiktok' : '';
-      return `<tr>
+        // ─ Bảng các đơn trùng ─────────────────────────────────────────────────────
+        const orderTableEl = document.getElementById("modal-order-table");
+        const ows = chkData.order_warnings || [];
+        if (ows.length > 0) {
+          orderTableEl.style.display = "block";
+          const rows = ows
+            .map((o) => {
+              const platCls =
+                o.platform === "shopee"
+                  ? "platform-shopee"
+                  : o.platform === "tiktok"
+                    ? "platform-tiktok"
+                    : "";
+              return `<tr>
         <td>${escHtml(o.order_sn)}</td>
-        <td>${escHtml(o.shop_name || '-')}</td>
-        <td><span class="platform-badge ${platCls}">${o.platform || '-'}</span></td>
-        <td><span class="method-badge">${o.delivery_method || '-'}</span></td>
-        <td>${o.page_number ?? '-'}</td>
+        <td>${escHtml(o.shop_name || "-")}</td>
+        <td><span class="platform-badge ${platCls}">${o.platform || "-"}</span></td>
+        <td><span class="method-badge">${o.delivery_method || "-"}</span></td>
+        <td>${o.page_number ?? "-"}</td>
         <td class="count-red">${o.print_count}</td>
-        <td>${o.last_print_time || '-'}</td>
+        <td>${o.last_print_time || "-"}</td>
       </tr>`;
-    }).join('');
-    orderTableEl.innerHTML = `
+            })
+            .join("");
+          orderTableEl.innerHTML = `
       <div class="modal-section-title">📦 ${ows.length} đơn hàng trong file này đã được in trước đó:</div>
       <div class="table-wrap">
         <table class="warn-table">
@@ -983,293 +1613,359 @@ function showReprintModal(chkData, printer, copies) {
           <tbody>${rows}</tbody>
         </table>
       </div>`;
-  } else {
-    orderTableEl.style.display = 'none';
-  }
+        } else {
+          orderTableEl.style.display = "none";
+        }
 
-  // ─ Danh sách trang không nhận dạng ───────────────────────────────────────
-  const unrecogEl = document.getElementById('modal-unrecognized');
-  const ups = chkData.unrecognized_pages || [];
-  if (ups.length > 0) {
-    unrecogEl.style.display = 'block';
-    const items = ups.map(p => {
-      const dvvc = p.delivery_method || 'Không rõ ĐVVC';
-      const sn   = p.order_sn        || '—';
-      return `<li>Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
-    }).join('');
-    unrecogEl.innerHTML = `
+        // ─ Danh sách trang không nhận dạng ───────────────────────────────────────
+        const unrecogEl = document.getElementById("modal-unrecognized");
+        const ups = chkData.unrecognized_pages || [];
+        if (ups.length > 0) {
+          unrecogEl.style.display = "block";
+          const items = ups
+            .map((p) => {
+              const dvvc = p.delivery_method || "Không rõ ĐVVC";
+              const sn = p.order_sn || "—";
+              return `<li>Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</li>`;
+            })
+            .join("");
+          unrecogEl.innerHTML = `
       <div class="modal-section-title" style="margin-top:12px">⛔ ${ups.length} trang không nhận dạng được ĐVVC:</div>
       <div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px 14px;margin-top:6px;">
         <ul style="list-style:none;font-size:.83rem;color:var(--muted);line-height:2;">${items}</ul>
       </div>`;
-  } else {
-    unrecogEl.style.display = 'none';
-  }
-
-  // Reset input lý do
-  const inp = document.getElementById('reprint-reason-input');
-  inp.value = '';
-  inp.classList.remove('input-err');
-
-  document.getElementById('reprint-modal').style.display = 'flex';
-  setTimeout(() => inp.focus(), 100);
-}
-
-function closeReprintModal() {
-  document.getElementById('reprint-modal').style.display = 'none';
-  _pendingPrint = null;
-}
-
-async function confirmReprint() {
-  const inp    = document.getElementById('reprint-reason-input');
-  const reason = inp.value.trim();
-  if (!reason) {
-    inp.classList.add('input-err');
-    inp.focus();
-    toast('Vui lòng nhập lý do in lại!', 'err');
-    return;
-  }
-  const { printer, copies } = _pendingPrint;
-  closeReprintModal();
-  await doPrint(selectedFile, printer, copies, true, reason);
-}
-
-async function doPrint(filename, printer, copies, is_reprint, reprint_reason) {
-  const btn = document.getElementById('print-btn');
-  btn.disabled  = true;
-  btn.innerHTML = '<span class="spinner"></span> Đang gửi lệnh in...';
-  try {
-    const r = await fetch('/api/print', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, printer, copies, is_reprint, reprint_reason }),
-    });
-    const d = await r.json();
-    if (d.ok) {
-      toast(`✅ Đã gửi lệnh in: ${filename}${is_reprint ? ' (in lại)' : ''}`, 'ok');
-      refreshJobs();
-      loadPrintsTable();
-      loadOrdersTable();
-    } else if (d.requires_reprint_reason) {
-      toast(`⚠️ ${d.error}`, 'err');
-    } else {
-      toast(`❌ ${d.error}`, 'err');
-    }
-  } catch (e) {
-    toast(`❌ Lỗi kết nối: ${e.message}`, 'err');
-  } finally {
-    btn.disabled  = false;
-    btn.innerHTML = '🖨️ In ngay';
-  }
-}
-
-/* ── Jobs (backward compat) ───────────────────────────────── */
-function refreshJobs() { /* no-op: UI sử dụng các bảng DB */ }
-
-/* ── DB Table helpers ─────────────────────────────────────── */
-const _debounceTimers = {};
-function debouncedSearch(key) {
-  clearTimeout(_debounceTimers[key]);
-  _debounceTimers[key] = setTimeout(() => {
-    if      (key === 'uploads') loadUploadsTable(1);
-    else if (key === 'prints')  loadPrintsTable(1);
-    else if (key === 'orders')  loadOrdersTable(1);
-  }, 380);
-}
-
-function renderPagination(containerId, page, totalPages, fnName) {
-  const el = document.getElementById(containerId);
-  if (totalPages <= 1) { el.innerHTML = ''; return; }
-  const pages = [];
-  const w = 2;
-  for (let p = 1; p <= totalPages; p++) {
-    if (p === 1 || p === totalPages || (p >= page - w && p <= page + w)) {
-      pages.push(p);
-    } else if (pages[pages.length - 1] !== '…') {
-      pages.push('…');
-    }
-  }
-  el.innerHTML = pages.map(p =>
-    p === '…'
-      ? `<span class="pg-btn pg-ellipsis">…</span>`
-      : `<button class="pg-btn${p === page ? ' pg-active' : ''}" onclick="${fnName}(${p})">${p}</button>`
-  ).join('');
-}
-
-/* State cho từng bảng */
-const _tblState = { uploads: { page: 1 }, prints: { page: 1 }, orders: { page: 1 } };
-
-async function loadUploadsTable(page) {
-  page = page || _tblState.uploads.page;
-  _tblState.uploads.page = page;
-  const q  = document.getElementById('up-q').value.trim();
-  const ip = document.getElementById('up-ip').value.trim();
-  const per_page = parseInt(document.getElementById('uploads-per-page').value) || 20;
-  const params = new URLSearchParams({ page, per_page });
-  if (q)  params.set('q',  q);
-  if (ip) params.set('ip', ip);
-  const tbody = document.getElementById('up-tbody');
-  tbody.innerHTML = '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
-  try {
-    const r = await fetch(`/api/files/history?${params}`);
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / per_page) || 1;
-    document.getElementById('up-count').textContent = `${d.total} bản ghi`;
-    if (!d.files.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
-    } else {
-      tbody.innerHTML = d.files.map(f => {
-        let printCell = '<span style="color:var(--muted);font-size:.78rem">Chưa in</span>';
-        if (f.print_count > 0) {
-          const statusIcon = f.last_status === 'success' ? '✅' : '❌';
-          const reprintBadge = f.print_count > 1
-            ? `<span class="reprint-tag" style="margin-left:4px">×${f.print_count}</span>` : '';
-          const printerLine = f.last_printer
-            ? `<div style="color:var(--muted);font-size:.72rem;margin-top:2px">${escHtml(f.last_printer)}</div>` : '';
-          const timeLine = f.last_print_time
-            ? `<div class="monospace" style="font-size:.72rem;color:var(--muted)">${escHtml(f.last_print_time)}</div>` : '';
-          printCell = `<div>${statusIcon}${reprintBadge}${printerLine}${timeLine}</div>`;
+        } else {
+          unrecogEl.style.display = "none";
         }
-        let noteCell = '<span style="color:var(--muted);font-size:.78rem">—</span>';
-        const items = f.note_items || [];
-        if (items.length > 0) {
-          const lines = items.map(p => {
-            const dvvc = p.delivery_method || 'Không rõ ĐVVC';
-            const sn   = p.order_sn        || '—';
-            return `<div style="white-space:nowrap">Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</div>`;
-          }).join('');
-          noteCell = `<div style="font-size:.78rem;color:var(--red);line-height:1.7">⛔ ${items.length} trang chưa nhận diện:<div style="color:var(--muted);margin-top:3px">${lines}</div></div>`;
+
+        // Reset input lý do
+        const inp = document.getElementById("reprint-reason-input");
+        inp.value = "";
+        inp.classList.remove("input-err");
+
+        document.getElementById("reprint-modal").style.display = "flex";
+        setTimeout(() => inp.focus(), 100);
+      }
+
+      function closeReprintModal() {
+        document.getElementById("reprint-modal").style.display = "none";
+        _pendingPrint = null;
+      }
+
+      async function confirmReprint() {
+        const inp = document.getElementById("reprint-reason-input");
+        const reason = inp.value.trim();
+        if (!reason) {
+          inp.classList.add("input-err");
+          inp.focus();
+          toast("Vui lòng nhập lý do in lại!", "err");
+          return;
         }
-        return `
+        const { printer, copies } = _pendingPrint;
+        closeReprintModal();
+        await doPrint(selectedFile, printer, copies, true, reason);
+      }
+
+      async function doPrint(
+        filename,
+        printer,
+        copies,
+        is_reprint,
+        reprint_reason,
+      ) {
+        const btn = document.getElementById("print-btn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Đang gửi lệnh in...';
+        try {
+          const r = await fetch("/api/print", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename,
+              printer,
+              copies,
+              is_reprint,
+              reprint_reason,
+            }),
+          });
+          const d = await r.json();
+          if (d.ok) {
+            toast(
+              `✅ Đã gửi lệnh in: ${filename}${is_reprint ? " (in lại)" : ""}`,
+              "ok",
+            );
+            refreshJobs();
+            loadPrintsTable();
+            loadOrdersTable();
+          } else if (d.requires_reprint_reason) {
+            toast(`⚠️ ${d.error}`, "err");
+          } else {
+            toast(`❌ ${d.error}`, "err");
+          }
+        } catch (e) {
+          toast(`❌ Lỗi kết nối: ${e.message}`, "err");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = "🖨️ In ngay";
+        }
+      }
+
+      /* ── Jobs (backward compat) ───────────────────────────────── */
+      function refreshJobs() {
+        /* no-op: UI sử dụng các bảng DB */
+      }
+
+      /* ── DB Table helpers ─────────────────────────────────────── */
+      const _debounceTimers = {};
+      function debouncedSearch(key) {
+        clearTimeout(_debounceTimers[key]);
+        _debounceTimers[key] = setTimeout(() => {
+          if (key === "uploads") loadUploadsTable(1);
+          else if (key === "prints") loadPrintsTable(1);
+          else if (key === "orders") loadOrdersTable(1);
+        }, 380);
+      }
+
+      function renderPagination(containerId, page, totalPages, fnName) {
+        const el = document.getElementById(containerId);
+        if (totalPages <= 1) {
+          el.innerHTML = "";
+          return;
+        }
+        const pages = [];
+        const w = 2;
+        for (let p = 1; p <= totalPages; p++) {
+          if (p === 1 || p === totalPages || (p >= page - w && p <= page + w)) {
+            pages.push(p);
+          } else if (pages[pages.length - 1] !== "…") {
+            pages.push("…");
+          }
+        }
+        el.innerHTML = pages
+          .map((p) =>
+            p === "…"
+              ? `<span class="pg-btn pg-ellipsis">…</span>`
+              : `<button class="pg-btn${p === page ? " pg-active" : ""}" onclick="${fnName}(${p})">${p}</button>`,
+          )
+          .join("");
+      }
+
+      /* State cho từng bảng */
+      const _tblState = {
+        uploads: { page: 1 },
+        prints: { page: 1 },
+        orders: { page: 1 },
+      };
+
+      async function loadUploadsTable(page) {
+        page = page || _tblState.uploads.page;
+        _tblState.uploads.page = page;
+        const q = document.getElementById("up-q").value.trim();
+        const ip = document.getElementById("up-ip").value.trim();
+        const per_page =
+          parseInt(document.getElementById("uploads-per-page").value) || 20;
+        const params = new URLSearchParams({ page, per_page });
+        if (q) params.set("q", q);
+        if (ip) params.set("ip", ip);
+        const tbody = document.getElementById("up-tbody");
+        tbody.innerHTML =
+          '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
+        try {
+          const r = await fetch(`/api/files/history?${params}`);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error);
+          const totalPages = Math.ceil(d.total / per_page) || 1;
+          document.getElementById("up-count").textContent =
+            `${d.total} bản ghi`;
+          if (!d.files.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
+          } else {
+            tbody.innerHTML = d.files
+              .map((f) => {
+                let printCell =
+                  '<span style="color:var(--muted);font-size:.78rem">Chưa in</span>';
+                if (f.print_count > 0) {
+                  const statusIcon = f.last_status === "success" ? "✅" : "❌";
+                  const reprintBadge =
+                    f.print_count > 1
+                      ? `<span class="reprint-tag" style="margin-left:4px">×${f.print_count}</span>`
+                      : "";
+                  const printerLine = f.last_printer
+                    ? `<div style="color:var(--muted);font-size:.72rem;margin-top:2px">${escHtml(f.last_printer)}</div>`
+                    : "";
+                  const timeLine = f.last_print_time
+                    ? `<div class="monospace" style="font-size:.72rem;color:var(--muted)">${escHtml(f.last_print_time)}</div>`
+                    : "";
+                  printCell = `<div>${statusIcon}${reprintBadge}${printerLine}${timeLine}</div>`;
+                }
+                let noteCell =
+                  '<span style="color:var(--muted);font-size:.78rem">—</span>';
+                const items = f.note_items || [];
+                if (items.length > 0) {
+                  const lines = items
+                    .map((p) => {
+                      const dvvc = p.delivery_method || "Không rõ ĐVVC";
+                      const sn = p.order_sn || "—";
+                      return `<div style="white-space:nowrap">Trang ${p.page_number} — ${escHtml(dvvc)} — ${escHtml(sn)}</div>`;
+                    })
+                    .join("");
+                  noteCell = `<div style="font-size:.78rem;color:var(--red);line-height:1.7">⛔ ${items.length} trang chưa nhận diện:<div style="color:var(--muted);margin-top:3px">${lines}</div></div>`;
+                }
+                return `
         <tr>
           <td class="monospace">${escHtml(f.original_name || f.filename)}</td>
-          <td class="monospace">${escHtml(f.upload_ip || '—')}</td>
-          <td>${f.file_size_kb != null ? f.file_size_kb + ' KB' : '—'}</td>
+          <td class="monospace">${escHtml(f.upload_ip || "—")}</td>
+          <td>${f.file_size_kb != null ? f.file_size_kb + " KB" : "—"}</td>
           <td>${f.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${f.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
-          <td class="monospace">${escHtml(f.upload_time || '—')}</td>
+          <td class="monospace">${escHtml(f.upload_time || "—")}</td>
           <td>${printCell}</td>
           <td>${noteCell}</td>
           <td>${f.id}</td>
           <td style="white-space:nowrap">
             <button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.filename)}')">🖨️ In</button>
             <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="downloadReport('${escHtml(f.filename)}')">📄 Báo cáo</button>
+            <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="recheckFile('${escHtml(f.filename)}')">🔄 Recheck</button>
           </td>
         </tr>`;
-      }).join('');
-    }
-    renderPagination('up-pg', page, totalPages, 'loadUploadsTable');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
-  }
-}
+              })
+              .join("");
+          }
+          renderPagination("up-pg", page, totalPages, "loadUploadsTable");
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+        }
+      }
 
-async function loadPrintsTable(page) {
-  page = page || _tblState.prints.page;
-  _tblState.prints.page = page;
-  const q         = document.getElementById('pr-q').value.trim();
-  const printer   = document.getElementById('pr-printer').value.trim();
-  const ip        = document.getElementById('pr-ip').value.trim();
-  const status    = document.getElementById('pr-status').value;
-  const isReprint = document.getElementById('pr-reprint').value;
-  const per_page  = parseInt(document.getElementById('prints-per-page').value) || 20;
-  const params    = new URLSearchParams({ page, per_page });
-  if (q)         params.set('q',          q);
-  if (printer)   params.set('printer',    printer);
-  if (ip)        params.set('ip',         ip);
-  if (status)    params.set('status',     status);
-  if (isReprint) params.set('is_reprint', isReprint);
-  const tbody = document.getElementById('pr-tbody');
-  tbody.innerHTML = '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
-  try {
-    const r = await fetch(`/api/print-history?${params}`);
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / per_page) || 1;
-    document.getElementById('pr-count').textContent = `${d.total} bản ghi`;
-    if (!d.jobs.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
-    } else {
-      tbody.innerHTML = d.jobs.map(j => `
+      async function loadPrintsTable(page) {
+        page = page || _tblState.prints.page;
+        _tblState.prints.page = page;
+        const q = document.getElementById("pr-q").value.trim();
+        const printer = document.getElementById("pr-printer").value.trim();
+        const ip = document.getElementById("pr-ip").value.trim();
+        const status = document.getElementById("pr-status").value;
+        const isReprint = document.getElementById("pr-reprint").value;
+        const per_page =
+          parseInt(document.getElementById("prints-per-page").value) || 20;
+        const params = new URLSearchParams({ page, per_page });
+        if (q) params.set("q", q);
+        if (printer) params.set("printer", printer);
+        if (ip) params.set("ip", ip);
+        if (status) params.set("status", status);
+        if (isReprint) params.set("is_reprint", isReprint);
+        const tbody = document.getElementById("pr-tbody");
+        tbody.innerHTML =
+          '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
+        try {
+          const r = await fetch(`/api/print-history?${params}`);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error);
+          const totalPages = Math.ceil(d.total / per_page) || 1;
+          document.getElementById("pr-count").textContent =
+            `${d.total} bản ghi`;
+          if (!d.jobs.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
+          } else {
+            tbody.innerHTML = d.jobs
+              .map(
+                (j) => `
         <tr>
           <td class="monospace">${escHtml(j.filename)}</td>
-          <td>${escHtml(j.printer_name || '—')}</td>
-          <td class="monospace">${escHtml(j.client_ip || '—')}</td>
+          <td>${escHtml(j.printer_name || "—")}</td>
+          <td class="monospace">${escHtml(j.client_ip || "—")}</td>
           <td>${j.copies}</td>
-          <td>${j.is_reprint
-            ? `<span class="reprint-tag">In lại</span>${j.reprint_reason ? '<br><small>' + escHtml(j.reprint_reason) + '</small>' : ''}`
-            : '<span class="tag tag-ok">Lần đầu</span>'}</td>
+          <td>${
+            j.is_reprint
+              ? `<span class="reprint-tag">In lại</span>${j.reprint_reason ? "<br><small>" + escHtml(j.reprint_reason) + "</small>" : ""}`
+              : '<span class="tag tag-ok">Lần đầu</span>'
+          }</td>
           <td>${j.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${j.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
-          <td><span class="status-${j.status === 'success' ? 'ok' : 'err'}">${j.status === 'success' ? '✅ Thành công' : '❌ Lỗi'}</span></td>
-          <td class="monospace">${escHtml(j.print_time || '—')}</td>
+          <td><span class="status-${j.status === "success" ? "ok" : "err"}">${j.status === "success" ? "✅ Thành công" : "❌ Lỗi"}</span></td>
+          <td class="monospace">${escHtml(j.print_time || "—")}</td>
           <td>${j.id}</td>
-        </tr>`).join('');
-    }
-    renderPagination('pr-pg', page, totalPages, 'loadPrintsTable');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
-  }
-}
+        </tr>`,
+              )
+              .join("");
+          }
+          renderPagination("pr-pg", page, totalPages, "loadPrintsTable");
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+        }
+      }
 
-async function loadOrdersTable(page) {
-  page = page || _tblState.orders.page;
-  _tblState.orders.page = page;
-  const order_sn = document.getElementById('or-sn').value.trim();
-  const shop     = document.getElementById('or-shop').value.trim();
-  const platform = document.getElementById('or-platform').value;
-  const method   = document.getElementById('or-method').value;
-  const per_page = parseInt(document.getElementById('orders-per-page').value) || 50;
-  const params   = new URLSearchParams({ page, per_page });
-  if (order_sn) params.set('order_sn',       order_sn);
-  if (shop)     params.set('shop_name',       shop);
-  if (platform) params.set('platform',        platform);
-  if (method)   params.set('delivery_method', method);
-  const tbody = document.getElementById('or-tbody');
-  tbody.innerHTML = '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
-  try {
-    const r = await fetch(`/api/orders/history?${params}`);
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    const totalPages = Math.ceil(d.total / per_page) || 1;
-    document.getElementById('or-count').textContent = `${d.total} bản ghi`;
-    if (!d.orders.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
-    } else {
-      tbody.innerHTML = d.orders.map(o => `
+      async function loadOrdersTable(page) {
+        page = page || _tblState.orders.page;
+        _tblState.orders.page = page;
+        const order_sn = document.getElementById("or-sn").value.trim();
+        const shop = document.getElementById("or-shop").value.trim();
+        const platform = document.getElementById("or-platform").value;
+        const method = document.getElementById("or-method").value;
+        const per_page =
+          parseInt(document.getElementById("orders-per-page").value) || 50;
+        const params = new URLSearchParams({ page, per_page });
+        if (order_sn) params.set("order_sn", order_sn);
+        if (shop) params.set("shop_name", shop);
+        if (platform) params.set("platform", platform);
+        if (method) params.set("delivery_method", method);
+        const tbody = document.getElementById("or-tbody");
+        tbody.innerHTML =
+          '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+        try {
+          const r = await fetch(`/api/orders/history?${params}`);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error);
+          const totalPages = Math.ceil(d.total / per_page) || 1;
+          document.getElementById("or-count").textContent =
+            `${d.total} bản ghi`;
+          if (!d.orders.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+          } else {
+            tbody.innerHTML = d.orders
+              .map(
+                (o) => `
         <tr>
           <td class="monospace">${escHtml(o.order_sn)}</td>
-          <td>${escHtml(o.shop_name || '—')}</td>
-          <td><span class="tag tag-platform">${escHtml(o.platform || '—')}</span></td>
-          <td>${escHtml(o.delivery_method || '—')}</td>
+          <td>${escHtml(o.shop_name || "—")}</td>
+          <td><span class="tag tag-platform">${escHtml(o.platform || "—")}</span></td>
+          <td>${escHtml(o.delivery_method || "—")}</td>
           <td>${o.print_count > 1 ? `<span class="reprint-tag">×${o.print_count}</span>` : o.print_count}</td>
-          <td class="monospace">${escHtml(o.filename || '—')}</td>
-          <td class="monospace">${escHtml(o.last_print_time || '—')}</td>
+          <td class="monospace">${escHtml(o.filename || "—")}</td>
+          <td class="monospace">${escHtml(o.last_print_time || "—")}</td>
           <td>${o.id}</td>
-        </tr>`).join('');
-    }
-    renderPagination('or-pg', page, totalPages, 'loadOrdersTable');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
-  }
-}
-/* ── Printer Aliases ────────────────────────────────────────── */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+        </tr>`,
+              )
+              .join("");
+          }
+          renderPagination("or-pg", page, totalPages, "loadOrdersTable");
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+        }
+      }
+      /* ── Printer Aliases ────────────────────────────────────────── */
+      function escHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
 
-async function loadAliasSettings() {
-  const r = await fetch('/api/printer-aliases');
-  const d = await r.json();
-  const tbody = document.getElementById('alias-tbody');
+      async function loadAliasSettings() {
+        const r = await fetch("/api/printer-aliases");
+        const d = await r.json();
+        const tbody = document.getElementById("alias-tbody");
 
-  if (!d.aliases.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="file-empty">Không tìm thấy máy in.</td></tr>';
-    return;
-  }
+        if (!d.aliases.length) {
+          tbody.innerHTML =
+            '<tr><td colspan="3" class="file-empty">Không tìm thấy máy in.</td></tr>';
+          return;
+        }
 
-  tbody.innerHTML = d.aliases.map(a => `
+        tbody.innerHTML = d.aliases
+          .map(
+            (a) => `
     <tr>
       <td class="printer-id">${escHtml(a.id)}</td>
       <td>
@@ -1292,88 +1988,139 @@ async function loadAliasSettings() {
         </div>
       </td>
     </tr>
-  `).join('');
-}
+  `,
+          )
+          .join("");
+      }
 
-async function saveAlias(printer, alias) {
-  const r = await fetch('/api/printer-aliases', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ printer, alias: alias.trim() }),
-  });
-  const d = await r.json();
-  if (d.ok) {
-    const display = alias.trim() || '(tên gốc)';
-    toast(`✅ "Đã lưu: ${printer}" → "${display}"`, 'ok');
-    loadPrinters();
-    loadAliasSettings();
-  } else {
-    toast(`❌ ${d.error}`, 'err');
-  }
-}
+      async function saveAlias(printer, alias) {
+        const r = await fetch("/api/printer-aliases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ printer, alias: alias.trim() }),
+        });
+        const d = await r.json();
+        if (d.ok) {
+          const display = alias.trim() || "(tên gốc)";
+          toast(`✅ "Đã lưu: ${printer}" → "${display}"`, "ok");
+          loadPrinters();
+          loadAliasSettings();
+        } else {
+          toast(`❌ ${d.error}`, "err");
+        }
+      }
 
-async function deleteAlias(printer) {
-  const r = await fetch(`/api/printer-aliases/${encodeURIComponent(printer)}`, { method: 'DELETE' });
-  const d = await r.json();
-  if (d.ok) {
-    toast(`Đã xóa alias: "${printer}"`, 'ok');
-    loadPrinters();
-    loadAliasSettings();
-  }
-}
-/* ── Print from uploads history table ────────────────────── */
-async function downloadReport(filename) {
-  const btn = event.currentTarget;
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Đang tải…';
-  try {
-    const resp = await fetch(`/api/files/${encodeURIComponent(filename)}/report`);
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ error: resp.statusText }));
-      alert('❌ Lỗi xuất báo cáo: ' + (err.error || resp.statusText));
-      return;
-    }
-    const blob = await resp.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const cd   = resp.headers.get('Content-Disposition') || '';
-    const match = cd.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']+)/i);
-    a.download = match ? decodeURIComponent(match[1]) : `Phieu_xuat_kho_${filename}.xlsx`;
-    a.href = url;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    alert('❌ ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = origText;
-  }
-}
+      async function deleteAlias(printer) {
+        const r = await fetch(
+          `/api/printer-aliases/${encodeURIComponent(printer)}`,
+          { method: "DELETE" },
+        );
+        const d = await r.json();
+        if (d.ok) {
+          toast(`Đã xóa alias: "${printer}"`, "ok");
+          loadPrinters();
+          loadAliasSettings();
+        }
+      }
+      /* ── Print from uploads history table ────────────────────── */
+      async function downloadReport(filename) {
+        const btn = event.currentTarget;
+        const origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "⏳ Đang tải…";
+        try {
+          const resp = await fetch(
+            `/api/files/${encodeURIComponent(filename)}/report`,
+          );
+          if (!resp.ok) {
+            const err = await resp
+              .json()
+              .catch(() => ({ error: resp.statusText }));
+            alert("❌ Lỗi xuất báo cáo: " + (err.error || resp.statusText));
+            return;
+          }
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          const cd = resp.headers.get("Content-Disposition") || "";
+          const match = cd.match(
+            /filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']+)/i,
+          );
+          a.download = match
+            ? decodeURIComponent(match[1])
+            : `Phieu_xuat_kho_${filename}.xlsx`;
+          a.href = url;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          alert("❌ " + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      }
 
-async function printFileFromHistory(filename) {
-  selectedFile = filename;
-  document.getElementById('selected-label').textContent = filename;
-  document.getElementById('print-btn').disabled = false;
-  // Highlight in file list if present
-  document.querySelectorAll('.file-item').forEach(el => {
-    el.classList.toggle('selected', el.dataset.name === filename);
-  });
-  await printSelected();
-}
+      async function recheckFile(filename) {
+        const btn = event.currentTarget;
+        const origText = btn.textContent;
+        if (!confirm(`Quét lại file "${filename}"?\n\nViệc này sẽ cập nhật lại danh sách đơn hàng từ file PDF.`)) {
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = "⏳ Đang quét…";
+        try {
+          const resp = await fetch(
+            `/api/files/${encodeURIComponent(filename)}/rescan`,
+            { method: "POST" }
+          );
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            alert("❌ Lỗi quét lại file: " + (data.error || resp.statusText));
+            return;
+          }
+          alert(`✅ Quét lại thành công!\n\nSố đơn hàng: ${data.order_count}\nTrang không nhận diện: ${data.unrecognized_count}`);
+          // Reload the uploads table to show updated data
+          await loadUploadsTable();
+        } catch (e) {
+          alert("❌ " + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      }
 
-/* ── Init ─────────────────────────────────────────────────── */
-(async () => {
-  await Promise.allSettled([loadServerInfo(), loadPrinters(), refreshFiles(), loadAliasSettings()]);
-  loadUploadsTable(1);
-  loadPrintsTable(1);
-  loadOrdersTable(1);
-})();
+      async function printFileFromHistory(filename) {
+        selectedFile = filename;
+        document.getElementById("selected-label").textContent = filename;
+        document.getElementById("print-btn").disabled = false;
+        // Highlight in file list if present
+        document.querySelectorAll(".file-item").forEach((el) => {
+          el.classList.toggle("selected", el.dataset.name === filename);
+        });
+        await printSelected();
+      }
 
-// Tự động làm mới bảng mỗi 30 giây
-setInterval(() => { loadUploadsTable(); loadPrintsTable(); loadOrdersTable(); }, 30_000);
-</script>
-</body>
+      /* ── Init ─────────────────────────────────────────────────── */
+      (async () => {
+        await Promise.allSettled([
+          loadServerInfo(),
+          loadPrinters(),
+          refreshFiles(),
+          loadAliasSettings(),
+        ]);
+        loadUploadsTable(1);
+        loadPrintsTable(1);
+        loadOrdersTable(1);
+      })();
+
+      // Tự động làm mới bảng mỗi 30 giây
+      setInterval(() => {
+        loadUploadsTable();
+        loadPrintsTable();
+        loadOrdersTable();
+      }, 30_000);
+    </script>
+  </body>
 </html>

@@ -15,6 +15,7 @@ from __future__ import annotations
 from .base       import PageResult
 from .shopee_spx import ShopeeSPXParser
 from .shopee_ghn import ShopeeGHNParser
+from .shopee_vtp import ShopeeVTPParser
 from .tiktok_jt  import TikTokJTParser
 
 # ── Thứ tự ưu tiên ───────────────────────────────────────────
@@ -24,6 +25,7 @@ PARSERS = [
     TikTokJTParser(),
     ShopeeSPXParser(),
     ShopeeGHNParser(),
+    ShopeeVTPParser(),
     # TODO: thêm ShopeeVTPParser(), ShopeVNPParser(), LazadaNinjaParser() ...
 ]
 

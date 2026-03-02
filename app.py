@@ -1155,6 +1155,81 @@ def api_file_report(filename):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/api/files/<path:filename>/rescan", methods=["POST"])
+def api_file_rescan(filename):
+    """
+    Quét lại file PDF đã upload để cập nhật danh sách đơn hàng.
+    Luồng:
+      1. Tìm file trong DB
+      2. Quét lại PDF bằng scan_pdf_for_orders
+      3. Xóa các FileOrder cũ
+      4. Thêm FileOrder mới
+      5. Cập nhật note (unrecognized_pages)
+    """
+    try:
+        # Kiểm tra file có tồn tại trong DB không
+        with get_session() as db:
+            uf = db.query(UploadedFile).filter(UploadedFile.filename == filename).first()
+            if not uf:
+                return jsonify({"ok": False, "error": "File không tồn tại trong hệ thống."}), 404
+        
+        # Kiểm tra file vật lý có tồn tại không
+        file_path = UPLOAD_FOLDER / filename
+        if not file_path.exists():
+            return jsonify({"ok": False, "error": "File vật lý không tồn tại."}), 404
+        
+        # Quét lại PDF
+        scanned_orders = []
+        unrecognized_pages = []
+        try:
+            df_orders, unrecognized_pages = scan_pdf_for_orders(str(file_path))
+            if not df_orders.empty:
+                scanned_orders = df_orders.to_dict("records")
+        except Exception as e:
+            log_error("api_file_rescan.scan", e, {"filename": filename})
+            return jsonify({"ok": False, "error": f"Lỗi quét PDF: {str(e)}"}), 500
+        
+        # Cập nhật DB
+        try:
+            with get_session() as db:
+                # Xóa các FileOrder cũ
+                db.query(FileOrder).filter(FileOrder.filename == filename).delete()
+                
+                # Thêm FileOrder mới
+                uf = db.query(UploadedFile).filter(UploadedFile.filename == filename).first()
+                for order in scanned_orders:
+                    db.add(FileOrder(
+                        uploaded_file_id    = uf.id,
+                        filename            = filename,
+                        order_sn            = order["order_sn"],
+                        shop_name           = order.get("shop_name"),
+                        platform            = order.get("platform"),
+                        delivery_method     = order.get("delivery_method"),
+                        delivery_method_raw = order.get("delivery_method_raw"),
+                        page_number         = order.get("page"),
+                    ))
+                
+                # Cập nhật note
+                uf.note = json.dumps(unrecognized_pages, ensure_ascii=False) if unrecognized_pages else None
+                db.commit()
+                
+        except Exception as e:
+            log_error("api_file_rescan.db", e, {"filename": filename})
+            return jsonify({"ok": False, "error": f"Lỗi cập nhật database: {str(e)}"}), 500
+        
+        log_info(f"Rescan: {filename} — {len(scanned_orders)} đơn")
+        
+        return jsonify({
+            "ok": True,
+            "order_count": len(scanned_orders),
+            "unrecognized_count": len(unrecognized_pages)
+        })
+        
+    except Exception as e:
+        log_error("api_file_rescan", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # --- Thông tin máy chủ -------------------------------------------------------
 
 @app.route("/api/info")
