@@ -73,7 +73,7 @@ def scan_pdf_for_orders(merged_pdf_path: str):
 
 
 if __name__ == "__main__":
-    merged_pdf_path = "uploads/20260301_121951_02-28_23-09-21_Shipping label+Packing slip.pdf"
+    merged_pdf_path = "test-files/20260303_031042_shopee-ok509br5ns-2026-03-03-1772507401230.pdf"
     df_orders, unrecognized = scan_pdf_for_orders(merged_pdf_path)
     print(df_orders)
     if unrecognized:

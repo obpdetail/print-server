@@ -16,6 +16,7 @@ from .base       import PageResult
 from .shopee_spx import ShopeeSPXParser
 from .shopee_ghn import ShopeeGHNParser
 from .shopee_vtp import ShopeeVTPParser
+from .shopee_ht  import ShopeeSHTParser
 from .tiktok_jt  import TikTokJTParser
 
 # ── Thứ tự ưu tiên ───────────────────────────────────────────
@@ -26,6 +27,7 @@ PARSERS = [
     ShopeeSPXParser(),
     ShopeeGHNParser(),
     ShopeeVTPParser(),
+    ShopeeSHTParser(),
     # TODO: thêm ShopeeVTPParser(), ShopeVNPParser(), LazadaNinjaParser() ...
 ]
 
