@@ -43,3 +43,5 @@ config.local.py
 # Excel files
 excels/
 
+# Google Sheets API credentials
+skusp-453402-55c4cf251ad8.json
