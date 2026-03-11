@@ -17,17 +17,21 @@ from .shopee_spx import ShopeeSPXParser
 from .shopee_ghn import ShopeeGHNParser
 from .shopee_vtp import ShopeeVTPParser
 from .shopee_ht  import ShopeeSHTParser
+from .shopee_vnp import ShopeeVNPParser
 from .tiktok_jt  import TikTokJTParser
+from .tiktok_gn24 import TikTokGN24Parser
 
 # ── Thứ tự ưu tiên ───────────────────────────────────────────
 # TikTok/J&T phải đứng trước Shopee vì nó dùng "Package ID"
 # thay vì "Mã vận đơn" — không bị nhầm với SPX / GHN.
 PARSERS = [
     TikTokJTParser(),
+    TikTokGN24Parser(),
     ShopeeSPXParser(),
     ShopeeGHNParser(),
     ShopeeVTPParser(),
     ShopeeSHTParser(),
+    ShopeeVNPParser(),
     # TODO: thêm ShopeeVTPParser(), ShopeVNPParser(), LazadaNinjaParser() ...
 ]
 
