@@ -1305,7 +1305,7 @@
       <div class="file-icon">📄</div>
       <div class="file-info">
         <div class="file-name">${f.name}</div>
-        <div class="file-meta">${f.size_kb} KB &nbsp;·&nbsp; ${f.time}</div>
+        <div class="file-meta">${f.size_kb} KB &nbsp;·&nbsp; ${formatLocalTime(f.time)}</div>
         ${noteBadge}
       </div>
       <button class="btn btn-danger"
@@ -1466,7 +1466,7 @@
           <td><span class="platform-badge ${platCls}">${o.platform || "-"}</span></td>
           <td><span class="method-badge">${o.delivery_method || "-"}</span></td>
           <td class="count-red">${o.print_count}</td>
-          <td>${o.last_print_time || "-"}</td>
+          <td>${o.last_print_time ? formatLocalTime(o.last_print_time) : "-"}</td>
         </tr>`;
           }
         }
@@ -1571,7 +1571,7 @@
       <div class="modal-warn-block">
         📄 File <strong>${escHtml(selectedFile)}</strong>
         đã được in <span class="count-red">${fw.print_count} lần</span>
-        ${fw.last_print_time ? `&nbsp;·&nbsp; Lần cuối: <strong>${fw.last_print_time} UTC</strong>` : ""}
+        ${fw.last_print_time ? `&nbsp;·&nbsp; Lần cuối: <strong>${formatLocalTime(fw.last_print_time)}</strong>` : ""}
         ${fw.last_printer ? `&nbsp;·&nbsp; Máy: <em>${escHtml(fw.last_printer)}</em>` : ""}
       </div>`;
         } else {
@@ -1598,7 +1598,7 @@
         <td><span class="method-badge">${o.delivery_method || "-"}</span></td>
         <td>${o.page_number ?? "-"}</td>
         <td class="count-red">${o.print_count}</td>
-        <td>${o.last_print_time || "-"}</td>
+        <td>${o.last_print_time ? formatLocalTime(o.last_print_time) : "-"}</td>
       </tr>`;
             })
             .join("");
@@ -1795,7 +1795,7 @@
                     ? `<div style="color:var(--muted);font-size:.72rem;margin-top:2px">${escHtml(f.last_printer)}</div>`
                     : "";
                   const timeLine = f.last_print_time
-                    ? `<div class="monospace" style="font-size:.72rem;color:var(--muted)">${escHtml(f.last_print_time)}</div>`
+                    ? `<div class="monospace" style="font-size:.72rem;color:var(--muted)">${formatLocalTime(f.last_print_time)}</div>`
                     : "";
                   printCell = `<div>${statusIcon}${reprintBadge}${printerLine}${timeLine}</div>`;
                 }
@@ -1818,7 +1818,7 @@
           <td class="monospace">${escHtml(f.upload_ip || "—")}</td>
           <td>${f.file_size_kb != null ? f.file_size_kb + " KB" : "—"}</td>
           <td>${f.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${f.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
-          <td class="monospace">${escHtml(f.upload_time || "—")}</td>
+          <td class="monospace">${formatLocalTime(f.upload_time) || "—"}</td>
           <td>${printCell}</td>
           <td>${noteCell}</td>
           <td>${f.id}</td>
@@ -1882,7 +1882,7 @@
           }</td>
           <td>${j.order_count > 0 ? `<span class="count-badge" style="color:var(--green);background:rgba(52,211,153,.12)">${j.order_count}</span>` : '<span style="color:var(--muted)">0</span>'}</td>
           <td><span class="status-${j.status === "success" ? "ok" : "err"}">${j.status === "success" ? "✅ Thành công" : "❌ Lỗi"}</span></td>
-          <td class="monospace">${escHtml(j.print_time || "—")}</td>
+          <td class="monospace">${formatLocalTime(j.print_time) || "—"}</td>
           <td>${j.id}</td>
         </tr>`,
               )
@@ -1932,7 +1932,7 @@
           <td>${escHtml(o.delivery_method || "—")}</td>
           <td>${o.print_count > 1 ? `<span class="reprint-tag">×${o.print_count}</span>` : o.print_count}</td>
           <td class="monospace">${escHtml(o.filename || "—")}</td>
-          <td class="monospace">${escHtml(o.last_print_time || "—")}</td>
+          <td class="monospace">${formatLocalTime(o.last_print_time) || "—"}</td>
           <td>${o.id}</td>
         </tr>`,
               )
@@ -1950,6 +1950,23 @@
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;");
+      }
+
+      /**
+       * Chuyển chuỗi datetime UTC (định dạng "YYYY-MM-DD HH:MM:SS") từ server
+       * sang múi giờ của trình duyệt (client) rồi format theo vi-VN.
+       */
+      function formatLocalTime(str) {
+        if (!str || str === "—") return str || "—";
+        // Server trả về UTC không có chỉ báo timezone — thêm Z để parse đúng
+        const iso = str.trim().replace(" ", "T") + "Z";
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return str;
+        return d.toLocaleString("vi-VN", {
+          year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+          hour12: false,
+        });
       }
 
       async function loadAliasSettings() {
