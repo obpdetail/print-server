@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>🖨️ Print Server</title>
+    <title>🖨️ In file PDF</title>
     <style>
       /* ── Reset & Base ───────────────────────────────────────────── */
       *,
@@ -69,6 +69,33 @@
       .server-info span {
         color: var(--green);
         font-weight: 600;
+      }
+      .header-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .header-nav a {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        transition:
+          background 0.2s,
+          border-color 0.2s,
+          color 0.2s;
+      }
+      .header-nav a:hover {
+        background: var(--border);
+        border-color: var(--accent);
+        color: #fff;
       }
 
       .grid {
@@ -835,8 +862,20 @@
       <!-- Header -->
       <header>
         <div>🖨️</div>
-        <h1>Print Server</h1>
+        <h1>In file PDF</h1>
         <span class="badge">LAN</span>
+        <nav class="header-nav" aria-label="Liên kết nhanh">
+          <a
+            href="http://192.168.2.42:3001/tiktok-print"
+            target="_blank"
+            rel="noopener noreferrer"
+            >In Đơn Tiktok</a>
+          <a
+            href="http://192.168.2.57:3000/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >In Đơn Shopee</a>
+        </nav>
         <div class="server-info" id="server-info">Đang tải...</div>
       </header>
 

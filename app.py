@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-app.py  –  Print Server
+app.py  –  In file PDF
 Chạy Flask trên 0.0.0.0 để các máy trong mạng LAN truy cập được.
 """
 

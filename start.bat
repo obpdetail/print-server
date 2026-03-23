@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 > nul
-title Print Server
+title In file PDF
 
 echo ============================================================
 echo   Kiem tra / cai dat thu vien...
@@ -9,7 +9,7 @@ pip install -r requirements.txt --quiet
 
 echo.
 echo ============================================================
-echo   Khoi dong Print Server...
+echo   Khoi dong In file PDF...
 echo ============================================================
 python app.py
 

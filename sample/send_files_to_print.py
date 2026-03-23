@@ -2,7 +2,7 @@
 """
 sample/send_files_to_print.py
 ──────────────────────────────
-Demo gửi danh sách file PDF đến Print Server qua REST API.
+Demo gửi danh sách file PDF đến In file PDF qua REST API.
 
 Các bước thực hiện:
   1. Lấy danh sách máy in khả dụng  (GET  /api/printers)
@@ -20,7 +20,7 @@ import requests
 
 # ── Cấu hình ─────────────────────────────────────────────────────────────────
 
-SERVER_URL   = "http://localhost:5000"   # Địa chỉ Print Server
+SERVER_URL   = "http://localhost:5000"   # Địa chỉ In file PDF
 PRINTER_NAME = ""                        # Để trống → dùng máy in mặc định
 COPIES       = 1                         # Số bản in cho mỗi file
 PRINT_FOLDER = r"I:\My Drive\in-don\test"                # Thư mục chứa file PDF cần in
@@ -92,7 +92,7 @@ def main():
         print(f"❌ Không tìm thấy file PDF nào trong thư mục: {PRINT_FOLDER}")
         sys.exit(1)
 
-    print(f"🔗 Kết nối đến Print Server: {SERVER_URL}\n")
+    print(f"🔗 Kết nối đến In file PDF: {SERVER_URL}\n")
 
     # 1. Danh sách máy in ─────────────────────────────────────────────────────
     try:
