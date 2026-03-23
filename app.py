@@ -349,7 +349,15 @@ def api_delete_file(filename):
 
 @app.route("/api/files/<path:filename>", methods=["GET"])
 def api_download_file(filename):
-    return send_from_directory(str(UPLOAD_FOLDER), filename)
+    want_download = request.args.get("download", "").lower() in (
+        "1", "true", "yes",
+    )
+    return send_from_directory(
+        str(UPLOAD_FOLDER),
+        filename,
+        as_attachment=want_download,
+        download_name=os.path.basename(filename) if want_download else None,
+    )
 
 
 # --- Gửi lệnh in -------------------------------------------------------------

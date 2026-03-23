@@ -1026,7 +1026,7 @@
                 <th>Trạng thái in</th>
                 <th>Ghi chú</th>
                 <th>ID</th>
-                <th></th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody id="up-tbody">
@@ -1123,11 +1123,12 @@
                 <th>Trạng thái</th>
                 <th>Thời gian</th>
                 <th>ID</th>
+                <th>Tải PDF</th>
               </tr>
             </thead>
             <tbody id="pr-tbody">
               <tr>
-                <td colspan="9" class="dt-empty">Đang tải…</td>
+                <td colspan="10" class="dt-empty">Đang tải…</td>
               </tr>
             </tbody>
           </table>
@@ -1213,11 +1214,12 @@
                 <th>File</th>
                 <th>Lần in cuối</th>
                 <th>ID</th>
+                <th>Tải PDF</th>
               </tr>
             </thead>
             <tbody id="or-tbody">
               <tr>
-                <td colspan="8" class="dt-empty">Đang tải…</td>
+                <td colspan="9" class="dt-empty">Đang tải…</td>
               </tr>
             </tbody>
           </table>
@@ -1862,6 +1864,7 @@
           <td>${noteCell}</td>
           <td>${f.id}</td>
           <td style="white-space:nowrap">
+            <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer" onclick='downloadPdfFile(${JSON.stringify(f.filename)})'>⬇️ Tải PDF</button>
             <button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick="printFileFromHistory('${escHtml(f.filename)}')">🖨️ In</button>
             <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="downloadReport('${escHtml(f.filename)}')">📄 Báo cáo</button>
             <button class="btn" style="padding:4px 10px;font-size:.78rem;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="recheckFile('${escHtml(f.filename)}')">🔄 Recheck</button>
@@ -1894,7 +1897,7 @@
         if (isReprint) params.set("is_reprint", isReprint);
         const tbody = document.getElementById("pr-tbody");
         tbody.innerHTML =
-          '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
+          '<tr><td colspan="10" class="dt-loading">Đang tải…</td></tr>';
         try {
           const r = await fetch(`/api/print-history?${params}`);
           const d = await r.json();
@@ -1904,7 +1907,7 @@
             `${d.total} bản ghi`;
           if (!d.jobs.length) {
             tbody.innerHTML =
-              '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
+              '<tr><td colspan="10" class="dt-empty">Không có dữ liệu.</td></tr>';
           } else {
             tbody.innerHTML = d.jobs
               .map(
@@ -1923,13 +1926,14 @@
           <td><span class="status-${j.status === "success" ? "ok" : "err"}">${j.status === "success" ? "✅ Thành công" : "❌ Lỗi"}</span></td>
           <td class="monospace">${formatLocalTime(j.print_time) || "—"}</td>
           <td>${j.id}</td>
+          <td><button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick='downloadPdfFile(${JSON.stringify(j.filename)})'>⬇️ Tải PDF</button></td>
         </tr>`,
               )
               .join("");
           }
           renderPagination("pr-pg", page, totalPages, "loadPrintsTable");
         } catch (e) {
-          tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="10" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
         }
       }
 
@@ -1949,7 +1953,7 @@
         if (method) params.set("delivery_method", method);
         const tbody = document.getElementById("or-tbody");
         tbody.innerHTML =
-          '<tr><td colspan="8" class="dt-loading">Đang tải…</td></tr>';
+          '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
         try {
           const r = await fetch(`/api/orders/history?${params}`);
           const d = await r.json();
@@ -1959,7 +1963,7 @@
             `${d.total} bản ghi`;
           if (!d.orders.length) {
             tbody.innerHTML =
-              '<tr><td colspan="8" class="dt-empty">Không có dữ liệu.</td></tr>';
+              '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
           } else {
             tbody.innerHTML = d.orders
               .map(
@@ -1973,16 +1977,31 @@
           <td class="monospace">${escHtml(o.filename || "—")}</td>
           <td class="monospace">${formatLocalTime(o.last_print_time) || "—"}</td>
           <td>${o.id}</td>
+          <td>${
+            o.filename
+              ? `<button class="btn btn-save" style="padding:4px 12px;font-size:.78rem" onclick='downloadPdfFile(${JSON.stringify(o.filename)})'>⬇️ Tải PDF</button>`
+              : '<span style="color:var(--muted)">—</span>'
+          }</td>
         </tr>`,
               )
               .join("");
           }
           renderPagination("or-pg", page, totalPages, "loadOrdersTable");
         } catch (e) {
-          tbody.innerHTML = `<tr><td colspan="8" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
         }
       }
       /* ── Printer Aliases ────────────────────────────────────────── */
+      function downloadPdfFile(filename) {
+        if (!filename) return;
+        const a = document.createElement("a");
+        a.href = `/api/files/${encodeURIComponent(filename)}?download=1`;
+        a.download = String(filename).split(/[/\\\\]/).pop() || "file.pdf";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
       function escHtml(str) {
         return String(str)
           .replace(/&/g, "&amp;")
