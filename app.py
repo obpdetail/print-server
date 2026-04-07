@@ -34,7 +34,8 @@ from database import (
 )
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
-UPLOAD_FOLDER        = BASE_DIR / "uploads"
+# UPLOAD_FOLDER        = BASE_DIR / "uploads"
+UPLOAD_FOLDER        = Path(r"C:\Users\PC\Dropbox\OBP\In_Don\upload-files\uploads")
 EXCEL_FOLDER         = BASE_DIR / "excels"
 JOB_LOG_FILE         = BASE_DIR / "logs" / "jobs.json"
 PRINTER_ALIASES_FILE = BASE_DIR / "printer_aliases.json"
