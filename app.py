@@ -41,6 +41,7 @@ JOB_LOG_FILE         = BASE_DIR / "logs" / "jobs.json"
 PRINTER_ALIASES_FILE = BASE_DIR / "printer_aliases.json"
 ALLOWED_EXT          = {"pdf"}
 MAX_FILE_MB   = 50
+CHECK_PRINTED_MAX_ORDER_SNS = 2000
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 EXCEL_FOLDER.mkdir(parents=True, exist_ok=True)
@@ -878,6 +879,70 @@ def api_file_orders(filename):
         })
     except Exception as e:
         log_error("api_file_orders", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/orders/check-printed", methods=["POST"])
+def api_orders_check_printed():
+    """Kiểm tra đơn đã in: nhận danh sách order_sn, trả về printed / unprinted."""
+    data = request.get_json(force=True) or {}
+    raw = data.get("order_sns")
+    if not isinstance(raw, list):
+        return jsonify({
+            "ok": False,
+            "error": "Thiếu hoặc sai định dạng order_sns (phải là mảng).",
+        }), 400
+
+    seen_order: list[str] = []
+    seen_set: set[str] = set()
+    for x in raw:
+        sn = str(x).strip()
+        if not sn or sn in seen_set:
+            continue
+        seen_set.add(sn)
+        seen_order.append(sn)
+
+    if not seen_order:
+        return jsonify({"ok": True, "printed": [], "unprinted": []})
+
+    if len(seen_order) > CHECK_PRINTED_MAX_ORDER_SNS:
+        return jsonify({
+            "ok": False,
+            "error": f"Vượt quá giới hạn {CHECK_PRINTED_MAX_ORDER_SNS} mã đơn mỗi lần gọi.",
+        }), 400
+
+    try:
+        with get_session() as db:
+            rows = (
+                db.query(OrderPrint)
+                .filter(OrderPrint.order_sn.in_(seen_order))
+                .all()
+            )
+        op_map = {op.order_sn: op for op in rows}
+
+        printed = []
+        unprinted = []
+        for sn in seen_order:
+            op = op_map.get(sn)
+            if op:
+                printed.append({
+                    "order_sn":          op.order_sn,
+                    "shop_name":         op.shop_name,
+                    "platform":          op.platform,
+                    "delivery_method":   op.delivery_method,
+                    "print_count":       op.print_count,
+                    "last_print_time":   (
+                        op.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                        if op.last_print_time_utc else None
+                    ),
+                    "filename":          op.filename,
+                })
+            else:
+                unprinted.append(sn)
+
+        return jsonify({"ok": True, "printed": printed, "unprinted": unprinted})
+    except Exception as e:
+        log_error("api_orders_check_printed", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
