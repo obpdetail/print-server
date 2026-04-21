@@ -12,22 +12,20 @@ import win32api
 
 
 def print_pdf_printer(filepath, printer_name=None):
+    printer_name = "Y486 Label"
     try:
         abs_path = os.path.abspath(filepath)
         if not os.path.exists(abs_path):
             raise FileNotFoundError(f"File không tồn tại: {abs_path}")
 
-        if printer_name:
-            win32api.ShellExecute(
-                0,
-                "printto",
-                abs_path,
-                f'"{printer_name}"',
-                ".",
-                0
-            )
-        else:
-            win32api.ShellExecute(0, "print", abs_path, None, ".", 0)
+        win32api.ShellExecute(
+            0,
+            "printto",
+            abs_path,
+            f'"{printer_name}"',
+            ".",
+            0
+        )
 
         print(f"✅ Đã gửi lệnh in: {abs_path} -> {printer_name or 'Default Printer'}")
         return True
