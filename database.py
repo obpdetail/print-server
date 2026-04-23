@@ -137,6 +137,23 @@ class OrderPrint(Base):
     )
 
 
+class BarcodeScanHistory(Base):
+    """Lịch sử quét barcode cho đơn hàng đóng."""
+    __tablename__ = "barcode_scan_history"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    source_name   = Column(String(100), nullable=False, index=True)
+    barcode       = Column(String(255), nullable=False, index=True)
+    barcode_type  = Column(String(50), nullable=True)
+    scan_time_utc = Column(DateTime, nullable=False, index=True)
+    created_date  = Column(DateTime, nullable=False, default=_utcnow)
+    updated_date  = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        Index("idx_barcode_scan_dedupe", "source_name", "barcode", "scan_time_utc"),
+    )
+
+
 class PrintCheck(Base):
     """
     Lịch sử kiểm tra trước khi in (pre-print check).

@@ -30,7 +30,7 @@ from scan_pdf import scan_pdf_for_orders
 from sqlalchemy import func
 from database import (
     init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint,
-    PrintCheck, PrintCheckOrder
+    PrintCheck, PrintCheckOrder, BarcodeScanHistory
 )
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
@@ -952,7 +952,7 @@ def api_orders_check_printed():
 @app.route("/api/orders/history")
 def api_orders_history():
     page            = max(1, int(request.args.get("page", 1)))
-    per_page        = min(100, int(request.args.get("per_page", 50)))
+    per_page        = min(100, int(request.args.get("per_page", 20)))
     order_sn        = request.args.get("order_sn",        "").strip()
     shop_name       = request.args.get("shop_name",       "").strip()
     platform        = request.args.get("platform",        "").strip()
@@ -992,6 +992,64 @@ def api_orders_history():
         return jsonify({"ok": True, "orders": orders, "total": total, "page": page, "per_page": per_page})
     except Exception as e:
         log_error("api_orders_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Lịch sử đơn hàng đóng (DB) ----------------------------------------------
+
+@app.route("/api/packed-orders/history")
+def api_packed_orders_history():
+    page        = max(1, int(request.args.get("page", 1)))
+    per_page    = min(100, int(request.args.get("per_page", 10)))
+    source_name = request.args.get("source_name", "").strip()
+    barcode     = request.args.get("barcode", "").strip()
+    offset      = (page - 1) * per_page
+    try:
+        with get_session() as db:
+            latest_scan_utc = db.query(func.max(BarcodeScanHistory.scan_time_utc)).scalar()
+            qry = db.query(BarcodeScanHistory)
+            if source_name:
+                qry = qry.filter(BarcodeScanHistory.source_name.like(f"%{source_name}%"))
+            if barcode:
+                qry = qry.filter(BarcodeScanHistory.barcode.like(f"%{barcode}%"))
+            total = qry.count()
+            rows = (
+                qry
+                .order_by(BarcodeScanHistory.scan_time_utc.desc(), BarcodeScanHistory.id.desc())
+                .offset(offset)
+                .limit(per_page)
+                .all()
+            )
+            packed_orders = [
+                {
+                    "id": r.id,
+                    "source_name": r.source_name,
+                    "barcode": r.barcode,
+                    "barcode_type": r.barcode_type,
+                    "scan_time": (
+                        r.scan_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+                        if r.scan_time_utc else None
+                    ),
+                    "created_date": (
+                        r.created_date.strftime("%Y-%m-%d %H:%M:%S")
+                        if r.created_date else None
+                    ),
+                }
+                for r in rows
+            ]
+        return jsonify({
+            "ok": True,
+            "packed_orders": packed_orders,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "latest_scan_date": (
+                latest_scan_utc.strftime("%Y-%m-%d")
+                if latest_scan_utc else None
+            ),
+        })
+    except Exception as e:
+        log_error("api_packed_orders_history", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

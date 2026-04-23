@@ -132,6 +132,41 @@
         align-items: center;
         gap: 8px;
       }
+      .history-tabs {
+        display: flex;
+        gap: 8px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .history-tab-btn {
+        background: var(--surface2);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          color 0.2s,
+          border-color 0.2s;
+      }
+      .history-tab-btn:hover {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+      .history-tab-btn.active {
+        background: rgba(79, 142, 247, 0.15);
+        border-color: var(--accent);
+        color: #cfe0ff;
+      }
+      .history-tab-panel {
+        display: none;
+      }
+      .history-tab-panel.active {
+        display: block;
+      }
 
       /* ── Drop Zone ──────────────────────────────────────────────── */
       #drop-zone {
@@ -925,7 +960,7 @@
         </div>
 
         <!-- ── Cột 2: Điều khiển in ── -->
-        <div class="card">
+        <div class="card" id="print-controls-card">
           <div class="card-title">🖨️ Điều khiển in</div>
 
           <div class="field">
@@ -968,8 +1003,39 @@
       </div>
       <!-- /.grid -->
 
+      <div class="history-tabs" id="history-tabs">
+        <button
+          class="history-tab-btn active"
+          data-tab-target="uploads"
+          onclick="switchHistoryTab('uploads')"
+        >
+          📂 File đã upload
+        </button>
+        <button
+          class="history-tab-btn"
+          data-tab-target="prints"
+          onclick="switchHistoryTab('prints')"
+        >
+          🖨️ Lịch sử in
+        </button>
+        <button
+          class="history-tab-btn"
+          data-tab-target="orders"
+          onclick="switchHistoryTab('orders')"
+        >
+          📦 Đơn hàng đã in
+        </button>
+        <button
+          class="history-tab-btn"
+          data-tab-target="packed-orders"
+          onclick="switchHistoryTab('packed-orders')"
+        >
+          📦 Đơn hàng đóng
+        </button>
+      </div>
+
       <!-- ══ Bảng File đã upload (DB) ═══════════════════════════════════════ -->
-      <div class="card" style="margin-top: 20px" id="card-uploads">
+      <div class="card history-tab-panel active" style="margin-top: 12px" id="card-uploads" data-tab-panel="uploads">
         <div class="card-title" style="justify-content: space-between">
           <span
             >📂 File đã upload
@@ -1009,6 +1075,7 @@
             id="uploads-per-page"
             onchange="loadUploadsTable(1)"
           >
+            <option value="10">10 / trang</option>
             <option value="20">20 / trang</option>
             <option value="50">50 / trang</option>
             <option value="100">100 / trang</option>
@@ -1040,7 +1107,7 @@
       </div>
 
       <!-- ══ Bảng Lịch sử in (DB) ════════════════════════════════════════════ -->
-      <div class="card" style="margin-top: 20px" id="card-prints">
+      <div class="card history-tab-panel" style="margin-top: 12px" id="card-prints" data-tab-panel="prints">
         <div class="card-title" style="justify-content: space-between">
           <span
             >🖨️ Lịch sử in
@@ -1105,6 +1172,7 @@
             id="prints-per-page"
             onchange="loadPrintsTable(1)"
           >
+            <option value="10">10 / trang</option>
             <option value="20">20 / trang</option>
             <option value="50">50 / trang</option>
             <option value="100">100 / trang</option>
@@ -1137,7 +1205,7 @@
       </div>
 
       <!-- ══ Bảng Đơn hàng đã in (DB) ════════════════════════════════════════ -->
-      <div class="card" style="margin-top: 20px" id="card-orders">
+      <div class="card history-tab-panel" style="margin-top: 12px" id="card-orders" data-tab-panel="orders">
         <div class="card-title" style="justify-content: space-between">
           <span
             >📦 Đơn hàng đã in
@@ -1197,6 +1265,7 @@
             id="orders-per-page"
             onchange="loadOrdersTable(1)"
           >
+            <option value="10">10 / trang</option>
             <option value="50">50 / trang</option>
             <option value="100">100 / trang</option>
             <option value="200">200 / trang</option>
@@ -1225,6 +1294,78 @@
           </table>
         </div>
         <div class="dt-pagination" id="or-pg"></div>
+      </div>
+
+      <!-- ══ Bảng Đơn hàng đóng (DB) ═════════════════════════════════════════ -->
+      <div class="card history-tab-panel" style="margin-top: 12px" id="card-packed-orders" data-tab-panel="packed-orders">
+        <div class="card-title" style="justify-content: space-between">
+          <span
+            >📦 Đơn hàng đóng
+            <span class="count-badge" id="pk-count">…</span>
+            <span id="pk-updated-note" style="font-size: 0.78rem; color: var(--muted); text-transform: none; letter-spacing: normal; margin-left: 10px">
+              Dữ liệu cập nhật tới ngày —
+            </span></span
+          >
+          <button
+            class="btn btn-danger"
+            onclick="loadPackedOrdersTable(1)"
+            style="padding: 4px 12px"
+          >
+            ↻ Làm mới
+          </button>
+        </div>
+        <div class="dt-search-row">
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 180px"
+            type="text"
+            id="pk-source"
+            placeholder="🔍 Nguồn quét (source_name)…"
+            oninput="debouncedSearch('packed-orders')"
+          />
+          <input
+            class="dt-search-input"
+            style="flex: 2; min-width: 180px"
+            type="text"
+            id="pk-barcode"
+            placeholder="Barcode…"
+            oninput="debouncedSearch('packed-orders')"
+          />
+          <button class="btn btn-save" onclick="loadPackedOrdersTable(1)">
+            Tìm
+          </button>
+          <select
+            class="dt-search-input"
+            style="width: auto"
+            id="packed-orders-per-page"
+            onchange="loadPackedOrdersTable(1)"
+          >
+            <option value="10">10 / trang</option>
+            <option value="20">20 / trang</option>
+            <option value="50">50 / trang</option>
+            <option value="100">100 / trang</option>
+          </select>
+        </div>
+        <div class="dt-wrap" id="packed-orders-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nguồn quét</th>
+                <th>Barcode</th>
+                <th>Loại barcode</th>
+                <th>Thời gian quét</th>
+                <th>Ngày tạo</th>
+              </tr>
+            </thead>
+            <tbody id="pk-tbody">
+              <tr>
+                <td colspan="6" class="dt-empty">Đang tải…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dt-pagination" id="pk-pg"></div>
       </div>
     </div>
     <!-- /.container -->
@@ -1757,6 +1898,19 @@
       }
 
       /* ── DB Table helpers ─────────────────────────────────────── */
+      const _historyTabs = ["uploads", "prints", "orders", "packed-orders"];
+      let _activeHistoryTab = "uploads";
+      function switchHistoryTab(tab) {
+        if (!_historyTabs.includes(tab)) return;
+        _activeHistoryTab = tab;
+        document.querySelectorAll(".history-tab-btn").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.tabTarget === tab);
+        });
+        document.querySelectorAll(".history-tab-panel").forEach((panel) => {
+          panel.classList.toggle("active", panel.dataset.tabPanel === tab);
+        });
+      }
+
       const _debounceTimers = {};
       function debouncedSearch(key) {
         clearTimeout(_debounceTimers[key]);
@@ -1764,6 +1918,7 @@
           if (key === "uploads") loadUploadsTable(1);
           else if (key === "prints") loadPrintsTable(1);
           else if (key === "orders") loadOrdersTable(1);
+          else if (key === "packed-orders") loadPackedOrdersTable(1);
         }, 380);
       }
 
@@ -1796,6 +1951,7 @@
         uploads: { page: 1 },
         prints: { page: 1 },
         orders: { page: 1 },
+        packedOrders: { page: 1 },
       };
 
       async function loadUploadsTable(page) {
@@ -1804,7 +1960,7 @@
         const q = document.getElementById("up-q").value.trim();
         const ip = document.getElementById("up-ip").value.trim();
         const per_page =
-          parseInt(document.getElementById("uploads-per-page").value) || 20;
+          parseInt(document.getElementById("uploads-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
         if (q) params.set("q", q);
         if (ip) params.set("ip", ip);
@@ -1888,7 +2044,7 @@
         const status = document.getElementById("pr-status").value;
         const isReprint = document.getElementById("pr-reprint").value;
         const per_page =
-          parseInt(document.getElementById("prints-per-page").value) || 20;
+          parseInt(document.getElementById("prints-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
         if (q) params.set("q", q);
         if (printer) params.set("printer", printer);
@@ -1945,7 +2101,7 @@
         const platform = document.getElementById("or-platform").value;
         const method = document.getElementById("or-method").value;
         const per_page =
-          parseInt(document.getElementById("orders-per-page").value) || 50;
+          parseInt(document.getElementById("orders-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
         if (order_sn) params.set("order_sn", order_sn);
         if (shop) params.set("shop_name", shop);
@@ -1989,6 +2145,54 @@
           renderPagination("or-pg", page, totalPages, "loadOrdersTable");
         } catch (e) {
           tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+        }
+      }
+
+      async function loadPackedOrdersTable(page) {
+        page = page || _tblState.packedOrders.page;
+        _tblState.packedOrders.page = page;
+        const source_name = document.getElementById("pk-source").value.trim();
+        const barcode = document.getElementById("pk-barcode").value.trim();
+        const per_page =
+          parseInt(document.getElementById("packed-orders-per-page").value) || 10;
+        const params = new URLSearchParams({ page, per_page });
+        if (source_name) params.set("source_name", source_name);
+        if (barcode) params.set("barcode", barcode);
+        const tbody = document.getElementById("pk-tbody");
+        tbody.innerHTML =
+          '<tr><td colspan="6" class="dt-loading">Đang tải…</td></tr>';
+        try {
+          const r = await fetch(`/api/packed-orders/history?${params}`);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error);
+          const totalPages = Math.ceil(d.total / per_page) || 1;
+          document.getElementById("pk-count").textContent =
+            `${d.total} bản ghi`;
+          document.getElementById("pk-updated-note").textContent =
+            `Dữ liệu cập nhật tới ngày ${d.latest_scan_date || "—"}`;
+          if (!d.packed_orders.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="6" class="dt-empty">Không có dữ liệu.</td></tr>';
+          } else {
+            tbody.innerHTML = d.packed_orders
+              .map(
+                (row) => `
+        <tr>
+          <td>${row.id}</td>
+          <td>${escHtml(row.source_name || "—")}</td>
+          <td class="monospace">${escHtml(row.barcode || "—")}</td>
+          <td>${escHtml(row.barcode_type || "—")}</td>
+          <td class="monospace">${formatLocalTime(row.scan_time) || "—"}</td>
+          <td class="monospace">${formatLocalTime(row.created_date) || "—"}</td>
+        </tr>`,
+              )
+              .join("");
+          }
+          renderPagination("pk-pg", page, totalPages, "loadPackedOrdersTable");
+        } catch (e) {
+          document.getElementById("pk-updated-note").textContent =
+            "Dữ liệu cập nhật tới ngày —";
+          tbody.innerHTML = `<tr><td colspan="6" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
         }
       }
       /* ── Printer Aliases ────────────────────────────────────────── */
@@ -2188,6 +2392,7 @@
         loadUploadsTable(1);
         loadPrintsTable(1);
         loadOrdersTable(1);
+        loadPackedOrdersTable(1);
       })();
 
       // Tự động làm mới bảng mỗi 30 giây
@@ -2195,6 +2400,7 @@
         loadUploadsTable();
         loadPrintsTable();
         loadOrdersTable();
+        loadPackedOrdersTable();
       }, 30_000);
     </script>
   </body>
