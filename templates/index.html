@@ -2182,7 +2182,7 @@
           <td>${escHtml(row.source_name || "—")}</td>
           <td class="monospace">${escHtml(row.barcode || "—")}</td>
           <td>${escHtml(row.barcode_type || "—")}</td>
-          <td class="monospace">${formatLocalTime(row.scan_time) || "—"}</td>
+          <td class="monospace">${escHtml(row.scan_time || "—")}</td>
           <td class="monospace">${formatLocalTime(row.created_date) || "—"}</td>
         </tr>`,
               )
