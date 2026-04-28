@@ -1174,7 +1174,14 @@ def api_packed_orders_time_window():
                 start_dt = r.start_time
                 if not start_dt:
                     continue
-                end_dt = r.next_time or (start_dt + timedelta(minutes=5))
+                max_end = start_dt + timedelta(minutes=5)
+                raw_end = r.next_time or max_end
+                # Giới hạn khung thời gian tối đa 5 phút
+                capped_end = raw_end if raw_end <= max_end else max_end
+                # Cộng thêm 2 giây "buffer" ở cuối, nhưng vẫn không vượt quá 5 phút
+                end_dt = capped_end + timedelta(seconds=2)
+                if end_dt > max_end:
+                    end_dt = max_end
                 by_barcode.setdefault(r.barcode, []).append({
                     "id": r.id,
                     "source_name": r.source_name,
