@@ -145,6 +145,7 @@ class BarcodeScanHistory(Base):
     source_name   = Column(String(100), nullable=False, index=True)
     barcode       = Column(String(255), nullable=False, index=True)
     barcode_type  = Column(String(50), nullable=True)
+    # Tên cột DB vẫn là scan_time_utc; giá trị lưu theo giờ local máy chủ (không offset UTC).
     scan_time_utc = Column(DateTime, nullable=False, index=True)
     created_date  = Column(DateTime, nullable=False, default=_utcnow)
     updated_date  = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

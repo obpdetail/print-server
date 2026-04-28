@@ -701,6 +701,104 @@
         margin-top: 16px;
         justify-content: flex-end;
       }
+
+      /* ── QR scan modal (đơn đóng hàng) ───────────────────────── */
+      .qr-scan-hint {
+        font-size: 0.82rem;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-bottom: 14px;
+      }
+      .qr-scan-field label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .qr-scan-field input,
+      .qr-scan-field select {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        outline: none;
+      }
+      .qr-scan-field input:focus,
+      .qr-scan-field select:focus {
+        border-color: var(--accent);
+      }
+      .qr-scan-buffer-wrap {
+        margin-top: 16px;
+        background: var(--surface2);
+        border: 1px dashed var(--accent);
+        border-radius: 10px;
+        padding: 14px;
+      }
+      .qr-scan-buffer-wrap label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 8px;
+        display: block;
+      }
+      #qr-scan-buffer {
+        width: 100%;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 12px 14px;
+        outline: none;
+      }
+      #qr-scan-buffer:focus {
+        border-color: var(--green);
+        box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.15);
+      }
+      .qr-scan-session-wrap {
+        margin-top: 16px;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .qr-scan-session-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+      .qr-scan-session-table th {
+        text-align: left;
+        padding: 8px 10px;
+        background: var(--surface2);
+        color: var(--muted);
+        font-weight: 700;
+        position: sticky;
+        top: 0;
+      }
+      .qr-scan-session-table td {
+        padding: 7px 10px;
+        border-top: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .qr-scan-session-table .mono {
+        font-family: ui-monospace, Consolas, monospace;
+        word-break: break-all;
+      }
+      .qr-scan-status-ok {
+        color: var(--green);
+        font-weight: 600;
+      }
+      .qr-scan-status-err {
+        color: var(--red);
+        font-weight: 600;
+      }
       .btn-confirm {
         background: var(--yellow);
         color: #111;
@@ -1306,23 +1404,26 @@
               Dữ liệu cập nhật tới ngày —
             </span></span
           >
-          <button
-            class="btn btn-danger"
-            onclick="loadPackedOrdersTable(1)"
-            style="padding: 4px 12px"
-          >
-            ↻ Làm mới
-          </button>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+            <button
+              class="btn btn-save"
+              type="button"
+              onclick="openQrScanModal()"
+              style="padding: 4px 12px; font-size: 0.78rem"
+            >
+              ➕ Thêm QR code
+            </button>
+            <button
+              class="btn btn-danger"
+              type="button"
+              onclick="loadPackedOrdersTable(1)"
+              style="padding: 4px 12px"
+            >
+              ↻ Làm mới
+            </button>
+          </div>
         </div>
         <div class="dt-search-row">
-          <input
-            class="dt-search-input"
-            style="flex: 2; min-width: 180px"
-            type="text"
-            id="pk-source"
-            placeholder="🔍 Nguồn quét (source_name)…"
-            oninput="debouncedSearch('packed-orders')"
-          />
           <input
             class="dt-search-input"
             style="flex: 2; min-width: 180px"
@@ -1356,11 +1457,12 @@
                 <th>Loại barcode</th>
                 <th>Thời gian quét</th>
                 <th>Ngày tạo</th>
+                <th>Cập nhật</th>
               </tr>
             </thead>
             <tbody id="pk-tbody">
               <tr>
-                <td colspan="6" class="dt-empty">Đang tải…</td>
+                <td colspan="7" class="dt-empty">Đang tải…</td>
               </tr>
             </tbody>
           </table>
@@ -1369,6 +1471,60 @@
       </div>
     </div>
     <!-- /.container -->
+
+    <!-- Thêm QR code (quét liên tục) -->
+    <div id="qr-scan-modal" class="modal-overlay" style="display: none; z-index: 1001">
+      <div class="modal-box" style="max-width: 560px" onclick="event.stopPropagation()">
+        <div class="modal-header" style="color: var(--green)">➕ Thêm QR code</div>
+        <p class="qr-scan-hint">
+          Đặt con trỏ vào ô bên dưới rồi quét bằng máy quét tay. Hầu hết máy quét sẽ gửi mã và kết thúc bằng
+          <strong>Enter</strong> — có thể quét liên tục nhiều mã cho đến khi bạn đóng cửa sổ này.
+        </p>
+        <p class="qr-scan-field" style="margin-bottom: 0; font-size: 0.82rem; color: var(--muted)">
+          Nguồn quét (cố định):
+          <strong style="color: var(--text)">máy cầm tay scanner</strong>
+        </p>
+        <div class="qr-scan-field" style="margin-top: 12px">
+          <label for="qr-scan-barcode-type">Loại mã</label>
+          <select id="qr-scan-barcode-type">
+            <option value="QR">QR</option>
+            <option value="CODE128">CODE128</option>
+            <option value="EAN13">EAN13</option>
+            <option value="OTHER">Khác</option>
+          </select>
+        </div>
+        <div class="qr-scan-buffer-wrap">
+          <label for="qr-scan-buffer">Ô nhận quét liên tục</label>
+          <input
+            type="text"
+            id="qr-scan-buffer"
+            autocomplete="off"
+            spellcheck="false"
+            inputmode="none"
+            placeholder="Quét vào đây…"
+            onkeydown="qrScanBufferKeydown(event)"
+          />
+        </div>
+        <div class="modal-section-title" style="margin-top: 16px">Phiên quét hiện tại</div>
+        <div class="qr-scan-session-wrap">
+          <table class="qr-scan-session-table">
+            <thead>
+              <tr>
+                <th style="width: 72px">Trạng thái</th>
+                <th>Mã</th>
+                <th style="width: 88px">ID</th>
+              </tr>
+            </thead>
+            <tbody id="qr-scan-session-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-danger" onclick="closeQrScanModal()">
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Reprint Warning Modal (Feature 4 & 5) -->
     <div id="reprint-modal" class="modal-overlay" style="display: none">
@@ -1954,6 +2110,119 @@
         packedOrders: { page: 1 },
       };
 
+      let _qrScanReloadTimer = null;
+      const _qrScanQueue = [];
+      let _qrScanWorker = false;
+
+      function _qrScanEscapeHandler(e) {
+        if (e.key !== "Escape") return;
+        const modal = document.getElementById("qr-scan-modal");
+        if (!modal || modal.style.display !== "flex") return;
+        e.preventDefault();
+        closeQrScanModal();
+      }
+
+      function openQrScanModal() {
+        const modal = document.getElementById("qr-scan-modal");
+        const buf = document.getElementById("qr-scan-buffer");
+        const tbody = document.getElementById("qr-scan-session-tbody");
+        if (!modal || !buf || !tbody) return;
+        buf.value = "";
+        tbody.innerHTML = "";
+        modal.style.display = "flex";
+        document.removeEventListener("keydown", _qrScanEscapeHandler, true);
+        document.addEventListener("keydown", _qrScanEscapeHandler, true);
+        setTimeout(() => buf.focus(), 80);
+      }
+
+      function closeQrScanModal() {
+        const modal = document.getElementById("qr-scan-modal");
+        if (!modal) return;
+        document.removeEventListener("keydown", _qrScanEscapeHandler, true);
+        modal.style.display = "none";
+        if (_qrScanReloadTimer) {
+          clearTimeout(_qrScanReloadTimer);
+          _qrScanReloadTimer = null;
+        }
+        loadPackedOrdersTable();
+      }
+
+      function qrScanRefocusBuffer() {
+        const modal = document.getElementById("qr-scan-modal");
+        if (!modal || modal.style.display !== "flex") return;
+        const a = document.activeElement;
+        if (a && a.id === "qr-scan-barcode-type") {
+          return;
+        }
+        const buf = document.getElementById("qr-scan-buffer");
+        if (buf) buf.focus();
+      }
+
+      function qrScanPrependRow(statusLabel, barcode, idCol, ok) {
+        const tbody = document.getElementById("qr-scan-session-tbody");
+        if (!tbody) return;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="${ok ? "qr-scan-status-ok" : "qr-scan-status-err"}">${escHtml(statusLabel)}</td><td class="mono">${escHtml(barcode)}</td><td class="mono">${escHtml(idCol)}</td>`;
+        tbody.insertBefore(tr, tbody.firstChild);
+      }
+
+      function schedulePackedOrdersReloadFromQr() {
+        if (_qrScanReloadTimer) clearTimeout(_qrScanReloadTimer);
+        _qrScanReloadTimer = setTimeout(() => {
+          _qrScanReloadTimer = null;
+          const modal = document.getElementById("qr-scan-modal");
+          if (modal && modal.style.display === "flex") loadPackedOrdersTable();
+        }, 900);
+      }
+
+      async function qrScanSubmitOne(barcode) {
+        const barcode_type = (
+          document.getElementById("qr-scan-barcode-type").value || "QR"
+        ).trim();
+        try {
+          const r = await fetch("/api/packed-orders/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              barcode,
+              barcode_type,
+            }),
+          });
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error || r.statusText);
+          qrScanPrependRow("OK", barcode, String(d.id), true);
+          schedulePackedOrdersReloadFromQr();
+        } catch (e) {
+          qrScanPrependRow("Lỗi", barcode, "—", false);
+          toast(`❌ ${e.message}`, "err");
+        }
+      }
+
+      async function qrScanDrainQueue() {
+        if (_qrScanWorker) return;
+        _qrScanWorker = true;
+        try {
+          while (_qrScanQueue.length) {
+            const code = _qrScanQueue.shift();
+            await qrScanSubmitOne(code);
+          }
+        } finally {
+          _qrScanWorker = false;
+          qrScanRefocusBuffer();
+        }
+      }
+
+      function qrScanBufferKeydown(e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const el = e.target;
+        const barcode = String(el.value || "").trim();
+        el.value = "";
+        if (!barcode) return;
+        _qrScanQueue.push(barcode);
+        void qrScanDrainQueue();
+      }
+
       async function loadUploadsTable(page) {
         page = page || _tblState.uploads.page;
         _tblState.uploads.page = page;
@@ -2151,16 +2420,14 @@
       async function loadPackedOrdersTable(page) {
         page = page || _tblState.packedOrders.page;
         _tblState.packedOrders.page = page;
-        const source_name = document.getElementById("pk-source").value.trim();
         const barcode = document.getElementById("pk-barcode").value.trim();
         const per_page =
           parseInt(document.getElementById("packed-orders-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
-        if (source_name) params.set("source_name", source_name);
         if (barcode) params.set("barcode", barcode);
         const tbody = document.getElementById("pk-tbody");
         tbody.innerHTML =
-          '<tr><td colspan="6" class="dt-loading">Đang tải…</td></tr>';
+          '<tr><td colspan="7" class="dt-loading">Đang tải…</td></tr>';
         try {
           const r = await fetch(`/api/packed-orders/history?${params}`);
           const d = await r.json();
@@ -2172,7 +2439,7 @@
             `Dữ liệu cập nhật tới ngày ${d.latest_scan_date || "—"}`;
           if (!d.packed_orders.length) {
             tbody.innerHTML =
-              '<tr><td colspan="6" class="dt-empty">Không có dữ liệu.</td></tr>';
+              '<tr><td colspan="7" class="dt-empty">Không có dữ liệu.</td></tr>';
           } else {
             tbody.innerHTML = d.packed_orders
               .map(
@@ -2183,7 +2450,8 @@
           <td class="monospace">${escHtml(row.barcode || "—")}</td>
           <td>${escHtml(row.barcode_type || "—")}</td>
           <td class="monospace">${escHtml(row.scan_time || "—")}</td>
-          <td class="monospace">${formatLocalTime(row.created_date) || "—"}</td>
+          <td class="monospace">${escHtml(row.created_date || "—")}</td>
+          <td class="monospace">${escHtml(row.updated_date || "—")}</td>
         </tr>`,
               )
               .join("");
@@ -2192,7 +2460,7 @@
         } catch (e) {
           document.getElementById("pk-updated-note").textContent =
             "Dữ liệu cập nhật tới ngày —";
-          tbody.innerHTML = `<tr><td colspan="6" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
         }
       }
       /* ── Printer Aliases ────────────────────────────────────────── */

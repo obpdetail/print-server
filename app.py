@@ -43,6 +43,9 @@ ALLOWED_EXT          = {"pdf"}
 MAX_FILE_MB   = 50
 CHECK_PRINTED_MAX_ORDER_SNS = 2000
 
+# Nguồn cố định khi quét QR bằng máy quét tay (barcode_scan_history.source_name)
+HANDHELD_SCANNER_SOURCE_NAME = "máy cầm tay scanner"
+
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 EXCEL_FOLDER.mkdir(parents=True, exist_ok=True)
 JOB_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1001,15 +1004,12 @@ def api_orders_history():
 def api_packed_orders_history():
     page        = max(1, int(request.args.get("page", 1)))
     per_page    = min(100, int(request.args.get("per_page", 10)))
-    source_name = request.args.get("source_name", "").strip()
     barcode     = request.args.get("barcode", "").strip()
     offset      = (page - 1) * per_page
     try:
         with get_session() as db:
-            latest_scan_utc = db.query(func.max(BarcodeScanHistory.scan_time_utc)).scalar()
+            latest_scan_time = db.query(func.max(BarcodeScanHistory.scan_time_utc)).scalar()
             qry = db.query(BarcodeScanHistory)
-            if source_name:
-                qry = qry.filter(BarcodeScanHistory.source_name.like(f"%{source_name}%"))
             if barcode:
                 qry = qry.filter(BarcodeScanHistory.barcode.like(f"%{barcode}%"))
             total = qry.count()
@@ -1034,6 +1034,10 @@ def api_packed_orders_history():
                         r.created_date.strftime("%Y-%m-%d %H:%M:%S")
                         if r.created_date else None
                     ),
+                    "updated_date": (
+                        r.updated_date.strftime("%Y-%m-%d %H:%M:%S")
+                        if r.updated_date else None
+                    ),
                 }
                 for r in rows
             ]
@@ -1044,12 +1048,52 @@ def api_packed_orders_history():
             "page": page,
             "per_page": per_page,
             "latest_scan_date": (
-                latest_scan_utc.strftime("%Y-%m-%d")
-                if latest_scan_utc else None
+                latest_scan_time.strftime("%Y-%m-%d")
+                if latest_scan_time else None
             ),
         })
     except Exception as e:
         log_error("api_packed_orders_history", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/packed-orders/scan", methods=["POST"])
+def api_packed_orders_scan():
+    """Ghi một lần quét QR/barcode vào barcode_scan_history (giờ theo múi giờ máy chủ)."""
+    data = request.get_json(force=True) or {}
+    source_name = HANDHELD_SCANNER_SOURCE_NAME
+    barcode = str(data.get("barcode", "")).strip()
+    barcode_type = str(data.get("barcode_type", "QR") or "QR").strip() or "QR"
+
+    if not barcode:
+        return jsonify({"ok": False, "error": "Thiếu mã (barcode)."}), 400
+    if len(barcode) > 255:
+        return jsonify({"ok": False, "error": "Mã quét tối đa 255 ký tự."}), 400
+    if len(barcode_type) > 50:
+        return jsonify({"ok": False, "error": "Loại mã tối đa 50 ký tự."}), 400
+
+    # Giờ theo múi giờ máy chủ (naive local), không dùng UTC
+    now = datetime.now()
+    try:
+        with get_session() as db:
+            row = BarcodeScanHistory(
+                source_name=source_name,
+                barcode=barcode,
+                barcode_type=barcode_type,
+                scan_time_utc=now,
+                created_date=now,
+                updated_date=now,
+            )
+            db.add(row)
+            db.flush()
+            new_id = row.id
+        return jsonify({
+            "ok": True,
+            "id": new_id,
+            "scan_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    except Exception as e:
+        log_error("api_packed_orders_scan", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
