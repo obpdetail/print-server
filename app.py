@@ -9,7 +9,7 @@ import os
 import sys
 import uuid
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests as _requests
@@ -28,6 +28,7 @@ sys.path.insert(0, str(BASE_DIR))
 from error_handler import log_error, log_info, log_warning
 from scan_pdf import scan_pdf_for_orders
 from sqlalchemy import func
+from sqlalchemy.orm import aliased
 from database import (
     init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint,
     PrintCheck, PrintCheckOrder, BarcodeScanHistory
@@ -1094,6 +1095,106 @@ def api_packed_orders_scan():
         })
     except Exception as e:
         log_error("api_packed_orders_scan", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# --- Khoảng thời gian đóng hàng theo barcode --------------------------------
+
+@app.route("/api/packed-orders/time-window", methods=["POST"])
+def api_packed_orders_time_window():
+    """
+    Request body: list barcode (hoặc { "barcodes": [...] }).
+
+    Với mỗi bản ghi quét của barcode:
+      - start_time = scan_time_utc của bản ghi đó
+      - end_time = scan_time_utc của bản ghi kế tiếp (cùng source_name) sau start_time
+        nếu không có thì end_time = start_time + 5 phút.
+    """
+    payload = request.get_json(force=True)
+    if isinstance(payload, dict) and "barcodes" in payload:
+        raw_list = payload.get("barcodes")
+    else:
+        raw_list = payload
+
+    if not isinstance(raw_list, list):
+        return jsonify({
+            "ok": False,
+            "error": "Body phải là list barcode hoặc { barcodes: [...] }.",
+        }), 400
+
+    barcodes: list[str] = []
+    seen: set[str] = set()
+    for x in raw_list:
+        b = str(x).strip()
+        if not b or b in seen:
+            continue
+        if len(b) > 255:
+            return jsonify({"ok": False, "error": "Barcode tối đa 255 ký tự."}), 400
+        seen.add(b)
+        barcodes.append(b)
+
+    if not barcodes:
+        return jsonify({"ok": True, "windows": []})
+
+    if len(barcodes) > 2000:
+        return jsonify({"ok": False, "error": "Tối đa 2000 barcode mỗi lần gọi."}), 400
+
+    try:
+        with get_session() as db:
+            N = aliased(BarcodeScanHistory)
+            next_time_sq = (
+                db.query(func.min(N.scan_time_utc))
+                .filter(
+                    N.source_name == BarcodeScanHistory.source_name,
+                    N.scan_time_utc > BarcodeScanHistory.scan_time_utc,
+                )
+                .correlate(BarcodeScanHistory)
+                .scalar_subquery()
+            )
+
+            # Lấy tất cả bản ghi quét theo barcode, kèm mốc kế tiếp theo source_name
+            rows = (
+                db.query(
+                    BarcodeScanHistory.barcode,
+                    BarcodeScanHistory.source_name,
+                    BarcodeScanHistory.scan_time_utc.label("start_time"),
+                    next_time_sq.label("next_time"),
+                    BarcodeScanHistory.id,
+                )
+                .filter(BarcodeScanHistory.barcode.in_(barcodes))
+                .order_by(
+                    BarcodeScanHistory.barcode.asc(),
+                    BarcodeScanHistory.scan_time_utc.asc(),
+                    BarcodeScanHistory.id.asc(),
+                )
+                .all()
+            )
+            by_barcode: dict[str, list[dict]] = {b: [] for b in barcodes}
+            for r in rows:
+                start_dt = r.start_time
+                if not start_dt:
+                    continue
+                end_dt = r.next_time or (start_dt + timedelta(minutes=5))
+                by_barcode.setdefault(r.barcode, []).append({
+                    "id": r.id,
+                    "source_name": r.source_name,
+                    "start_time": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                    "end_time": end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                })
+
+        # Giữ tương thích: trả list theo thứ tự input, mỗi barcode có nhiều khung
+        windows = [
+            {
+                "barcode": b,
+                "found": len(by_barcode.get(b, [])) > 0,
+                "windows": by_barcode.get(b, []),
+            }
+            for b in barcodes
+        ]
+
+        return jsonify({"ok": True, "windows": windows})
+    except Exception as e:
+        log_error("api_packed_orders_time_window", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
