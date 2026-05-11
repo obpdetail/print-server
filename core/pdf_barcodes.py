@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from io import BytesIO
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -39,6 +40,71 @@ def _pairs_from_pil_image(
     return out
 
 
+def _pairs_from_page_render(page: fitz.Page, zoom: float) -> list[tuple[str, str]]:
+    """Raster hóa trang (vector hoặc ảnh) rồi decode."""
+    from PIL import Image
+
+    mat = fitz.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    return _pairs_from_pil_image(img, max_codes=None)
+
+
+def _pairs_from_embedded_images(doc: fitz.Document, page: fitz.Page) -> list[tuple[str, str]]:
+    """
+    Quét từng ảnh XObject nhúng trong trang (PDF dạng scan / toàn ảnh).
+    Dùng byte gốc của ảnh, tránh mất chi tiết do render lại.
+    """
+    from PIL import Image
+
+    seen_text: set[str] = set()
+    out: list[tuple[str, str]] = []
+    xrefs_seen: set[int] = set()
+    for info in page.get_images(full=True):
+        xref = int(info[0])
+        if xref in xrefs_seen:
+            continue
+        xrefs_seen.add(xref)
+        try:
+            bd = doc.extract_image(xref)
+        except Exception:
+            continue
+        data = bd.get("image")
+        if not data:
+            continue
+        try:
+            im = Image.open(BytesIO(data))
+            im = im.convert("RGB")
+        except Exception:
+            continue
+        for text, sym in _pairs_from_pil_image(im, max_codes=None):
+            if text in seen_text:
+                continue
+            seen_text.add(text)
+            out.append((text, sym))
+    return out
+
+
+def _barcodes_for_page(
+    doc: fitz.Document,
+    page: fitz.Page,
+    *,
+    zoom: float = 2.0,
+) -> list[tuple[str, str]]:
+    """
+    Thứ tự: render (zoom mặc định) → render zoom cao hơn → ảnh nhúng trong trang.
+    """
+    pairs = _pairs_from_page_render(page, zoom)
+    if pairs:
+        return pairs
+    hi_zoom = max(zoom * 1.75, 3.5)
+    if hi_zoom > zoom + 0.01:
+        pairs = _pairs_from_page_render(page, hi_zoom)
+        if pairs:
+            return pairs
+    return _pairs_from_embedded_images(doc, page)
+
+
 def read_barcodes_on_pdf_page(
     pdf_path: str | Path,
     page_number: int,
@@ -55,20 +121,17 @@ def read_barcodes_on_pdf_page(
     if not path.is_file() or page_number < 1:
         return []
 
-    from PIL import Image
-
     doc = fitz.open(path)
     try:
         if page_number > doc.page_count:
             return []
         page = doc[page_number - 1]
-        mat = fitz.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat, alpha=False)
-        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        pairs = _barcodes_for_page(doc, page, zoom=zoom)
+        if max_codes is not None:
+            pairs = pairs[:max_codes]
+        return pairs
     finally:
         doc.close()
-
-    return _pairs_from_pil_image(img, max_codes=max_codes)
 
 
 def scan_pdf_all_pages_barcodes(
@@ -84,17 +147,12 @@ def scan_pdf_all_pages_barcodes(
     if not path.is_file():
         return {}
 
-    from PIL import Image
-
     out: dict[int, list[tuple[str, str]]] = {}
     doc = fitz.open(path)
     try:
         for i in range(doc.page_count):
             page = doc[i]
-            mat = fitz.Matrix(zoom, zoom)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            pairs = _pairs_from_pil_image(img, max_codes=None)
+            pairs = _barcodes_for_page(doc, page, zoom=zoom)
             if pairs:
                 out[i + 1] = pairs
     finally:
