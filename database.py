@@ -3,9 +3,10 @@
 database.py — SQLAlchemy ORM models + session helpers (MySQL)
 
 Tables:
-    uploaded_files  — lịch sử upload
-    print_jobs      — lịch sử lệnh in
-    order_prints    — lịch sử đơn hàng đã in (tích lũy print_count theo order_sn)
+    uploaded_files      — lịch sử upload
+    file_page_barcodes  — barcode theo trang PDF (upload/rescan)
+    print_jobs          — lịch sử lệnh in
+    order_prints        — lịch sử đơn hàng đã in (tích lũy print_count theo order_sn)
 """
 
 from __future__ import annotations
@@ -13,7 +14,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, create_engine, text
+    Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text,
+    UniqueConstraint, create_engine, text,
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -89,6 +91,36 @@ class FileOrder(Base):
     )
 
 
+class FilePageBarcode(Base):
+    """
+    Barcode quét được trên từng trang PDF khi upload/rescan.
+    Mỗi dòng là một mã; cùng trang có thể có nhiều dòng.
+    """
+    __tablename__ = "file_page_barcodes"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    uploaded_file_id = Column(
+        Integer,
+        ForeignKey("uploaded_files.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    page_number = Column(Integer, nullable=False)
+    barcode     = Column(String(255), nullable=False)
+    # Cột DB tên `type` (symbology zxing); thuộc tính Python tránh từ khóa `type`
+    symbology   = Column("type", String(50), nullable=True)
+    created_date = Column(DateTime, nullable=False, default=_utcnow)
+    updated_date = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "uploaded_file_id", "page_number", "barcode",
+            name="uq_file_page_barcodes_file_page_barcode",
+        ),
+        Index("ix_file_page_barcodes_uploaded_page", "uploaded_file_id", "page_number"),
+    )
+
+
 class PrintJob(Base):
     """Lịch sử các lệnh in."""
     __tablename__ = "print_jobs"
@@ -126,6 +158,12 @@ class OrderPrint(Base):
     delivery_method_raw = Column(String(100), nullable=True)
     # ^ text gốc từ PDF (để debug / phân biệt SPX Instant vs SPX Express)
     page_number         = Column(Integer, nullable=True)
+    barcode_1           = Column(String(255), nullable=True)
+    barcode_2           = Column(String(255), nullable=True)
+    barcode_3           = Column(String(255), nullable=True)
+    type_1              = Column(String(50), nullable=True)
+    type_2              = Column(String(50), nullable=True)
+    type_3              = Column(String(50), nullable=True)
     print_count         = Column(Integer, nullable=False, default=1)
     # ^ tổng số lần đơn này được in (tích lũy)
     last_print_time_utc = Column(DateTime, nullable=True)
@@ -253,6 +291,12 @@ def init_db():
     # ── Migration an toàn: thêm cột mới nếu chưa có ──────────
     migrations = [
         "ALTER TABLE uploaded_files ADD COLUMN note TEXT NULL",
+        "ALTER TABLE order_prints ADD COLUMN barcode_1 VARCHAR(255) NULL",
+        "ALTER TABLE order_prints ADD COLUMN barcode_2 VARCHAR(255) NULL",
+        "ALTER TABLE order_prints ADD COLUMN barcode_3 VARCHAR(255) NULL",
+        "ALTER TABLE order_prints ADD COLUMN type_1 VARCHAR(50) NULL",
+        "ALTER TABLE order_prints ADD COLUMN type_2 VARCHAR(50) NULL",
+        "ALTER TABLE order_prints ADD COLUMN type_3 VARCHAR(50) NULL",
     ]
     with engine.connect() as conn:
         for stmt in migrations:
@@ -261,3 +305,19 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass  # Cột đã tồn tại → bỏ qua
+
+    # Schema cũ file_page_barcodes (filename + barcode_1..3): thay bằng bảng mới một lần
+    try:
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 'file_page_barcodes' "
+                "AND COLUMN_NAME = 'filename'"
+            ))
+            if r.scalar():
+                conn.execute(text("DROP TABLE file_page_barcodes"))
+                conn.commit()
+    except Exception:
+        pass
+    Base.metadata.create_all(bind=engine)

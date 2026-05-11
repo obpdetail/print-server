@@ -1150,18 +1150,19 @@
         <div class="dt-search-row">
           <input
             class="dt-search-input"
+            style="flex: 1.2; min-width: 140px"
+            type="text"
+            id="up-barcode"
+            placeholder="Barcode (trong PDF)…"
+            oninput="debouncedSearch('uploads')"
+            title="Tìm file có chứa mã này trong file_page_barcodes"
+          />
+          <input
+            class="dt-search-input"
             style="flex: 2; min-width: 160px"
             type="text"
             id="up-q"
             placeholder="🔍 Tên file…"
-            oninput="debouncedSearch('uploads')"
-          />
-          <input
-            class="dt-search-input"
-            style="flex: 1; min-width: 110px"
-            type="text"
-            id="up-ip"
-            placeholder="IP upload…"
             oninput="debouncedSearch('uploads')"
           />
           <button class="btn btn-save" onclick="loadUploadsTable(1)">
@@ -2227,12 +2228,12 @@
         page = page || _tblState.uploads.page;
         _tblState.uploads.page = page;
         const q = document.getElementById("up-q").value.trim();
-        const ip = document.getElementById("up-ip").value.trim();
+        const barcode = document.getElementById("up-barcode").value.trim();
         const per_page =
           parseInt(document.getElementById("uploads-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
         if (q) params.set("q", q);
-        if (ip) params.set("ip", ip);
+        if (barcode) params.set("barcode", barcode);
         const tbody = document.getElementById("up-tbody");
         tbody.innerHTML =
           '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';

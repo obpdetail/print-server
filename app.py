@@ -27,11 +27,16 @@ sys.path.insert(0, str(BASE_DIR))
 
 from error_handler import log_error, log_info, log_warning
 from scan_pdf import scan_pdf_for_orders
+from core.pdf_barcodes import (
+    barcode_fields_from_pairs,
+    read_barcodes_on_pdf_page,
+    scan_pdf_all_pages_barcodes,
+)
 from sqlalchemy import func
 from sqlalchemy.orm import aliased
 from database import (
-    init_db, get_session, UploadedFile, FileOrder, PrintJob, OrderPrint,
-    PrintCheck, PrintCheckOrder, BarcodeScanHistory
+    init_db, get_session, UploadedFile, FileOrder, FilePageBarcode, PrintJob,
+    OrderPrint, PrintCheck, PrintCheckOrder, BarcodeScanHistory,
 )
 
 # ── Cấu hình ────────────────────────────────────────────────────────────────
@@ -244,7 +249,13 @@ def api_upload():
     except Exception as e:
         log_error("api_upload.scan", e, {"filename": unique_name})
 
-    # ── Ghi UploadedFile + FileOrder vào DB (1 transaction) ─────
+    page_barcode_map: dict = {}
+    try:
+        page_barcode_map = scan_pdf_all_pages_barcodes(str(dest))
+    except Exception as e:
+        log_error("api_upload.pdf_barcodes", e, {"filename": unique_name})
+
+    # ── Ghi UploadedFile + FileOrder + FilePageBarcode vào DB ───
     try:
         with get_session() as db:
             uf = UploadedFile(
@@ -269,6 +280,15 @@ def api_upload():
                     delivery_method_raw = order.get("delivery_method_raw"),
                     page_number         = order.get("page"),
                 ))
+
+            for page_num, pairs in page_barcode_map.items():
+                for text, sym in pairs:
+                    db.add(FilePageBarcode(
+                        uploaded_file_id = uf.id,
+                        page_number      = int(page_num),
+                        barcode          = text[:255],
+                        symbology        = sym[:50] if sym else None,
+                    ))
     except Exception as e:
         log_error("api_upload.db", e, {"filename": unique_name})
 
@@ -621,7 +641,26 @@ def api_print():
                 db.add(db_job)
 
                 if success and orders_info:
+                    page_barcode_slots: dict[int, dict[str, str | None]] = {}
+
+                    def _slots_for_order_page(pn) -> dict[str, str | None]:
+                        if pn is None or int(pn) < 1:
+                            return barcode_fields_from_pairs([])
+                        key = int(pn)
+                        if key not in page_barcode_slots:
+                            try:
+                                pairs = read_barcodes_on_pdf_page(filepath, key)
+                                page_barcode_slots[key] = barcode_fields_from_pairs(pairs)
+                            except Exception as e:
+                                log_error(
+                                    "api_print.pdf_barcodes", e,
+                                    {"filename": filename, "page": key},
+                                )
+                                page_barcode_slots[key] = barcode_fields_from_pairs([])
+                        return page_barcode_slots[key]
+
                     for order in orders_info:
+                        slots = _slots_for_order_page(order.get("page"))
                         existing_op = db.query(OrderPrint).filter(
                             OrderPrint.order_sn == order["order_sn"]
                         ).first()
@@ -629,6 +668,13 @@ def api_print():
                             existing_op.print_count         += 1
                             existing_op.last_print_time_utc  = now_utc
                             existing_op.filename             = filename
+                            existing_op.page_number          = order.get("page")
+                            existing_op.barcode_1            = slots["barcode_1"]
+                            existing_op.barcode_2            = slots["barcode_2"]
+                            existing_op.barcode_3            = slots["barcode_3"]
+                            existing_op.type_1               = slots["type_1"]
+                            existing_op.type_2               = slots["type_2"]
+                            existing_op.type_3               = slots["type_3"]
                         else:
                             db.add(OrderPrint(
                                 filename=filename,
@@ -640,6 +686,12 @@ def api_print():
                                 page_number=order.get("page"),
                                 print_count=1,
                                 last_print_time_utc=now_utc,
+                                barcode_1=slots["barcode_1"],
+                                barcode_2=slots["barcode_2"],
+                                barcode_3=slots["barcode_3"],
+                                type_1=slots["type_1"],
+                                type_2=slots["type_2"],
+                                type_3=slots["type_3"],
                             ))
         except Exception as e:
             log_error("api_print.db", e)
@@ -683,14 +735,20 @@ def api_files_history():
     per_page = min(100, int(request.args.get("per_page", 20)))
     offset   = (page - 1) * per_page
     q        = request.args.get("q",  "").strip()
-    ip       = request.args.get("ip", "").strip()
+    barcode  = request.args.get("barcode", "").strip()
     try:
         with get_session() as db:
             qry = db.query(UploadedFile)
             if q:
                 qry = qry.filter(UploadedFile.original_name.like(f"%{q}%"))
-            if ip:
-                qry = qry.filter(UploadedFile.upload_ip.like(f"%{ip}%"))
+            if barcode:
+                qry = qry.filter(
+                    UploadedFile.id.in_(
+                        db.query(FilePageBarcode.uploaded_file_id)
+                        .filter(FilePageBarcode.barcode.like(f"%{barcode}%"))
+                        .distinct()
+                    )
+                )
             total = qry.count()
             rows  = (
                 qry
@@ -852,9 +910,43 @@ def api_file_orders(filename):
                            .all()
             }
 
+            uf_row = (
+                db.query(UploadedFile)
+                .filter(UploadedFile.filename == filename)
+                .first()
+            )
+            fpb_by_page: dict[int, list[dict]] = {}
+            if uf_row:
+                for row in (
+                    db.query(FilePageBarcode)
+                    .filter(FilePageBarcode.uploaded_file_id == uf_row.id)
+                    .order_by(FilePageBarcode.page_number, FilePageBarcode.id)
+                    .all()
+                ):
+                    fpb_by_page.setdefault(row.page_number, []).append({
+                        "barcode": row.barcode,
+                        "type":    row.symbology,
+                    })
+
             orders = []
             for fo in file_orders:
                 op = printed_map.get(fo.order_sn)
+                page_bcs = (
+                    fpb_by_page.get(fo.page_number, [])
+                    if fo.page_number is not None
+                    else []
+                )
+                b1 = b2 = b3 = None
+                t1 = t2 = t3 = None
+                if len(page_bcs) >= 1:
+                    b1, t1 = page_bcs[0]["barcode"], page_bcs[0]["type"]
+                if len(page_bcs) >= 2:
+                    b2, t2 = page_bcs[1]["barcode"], page_bcs[1]["type"]
+                if len(page_bcs) >= 3:
+                    b3, t3 = page_bcs[2]["barcode"], page_bcs[2]["type"]
+                if not page_bcs and op:
+                    b1, b2, b3 = op.barcode_1, op.barcode_2, op.barcode_3
+                    t1, t2, t3 = op.type_1, op.type_2, op.type_3
                 orders.append({
                     "id":                fo.id,
                     "order_sn":          fo.order_sn,
@@ -869,6 +961,13 @@ def api_file_orders(filename):
                         op.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
                         if op and op.last_print_time_utc else None
                     ),
+                    "page_barcodes":     page_bcs,
+                    "barcode_1":         b1,
+                    "barcode_2":         b2,
+                    "barcode_3":         b3,
+                    "type_1":            t1,
+                    "type_2":            t2,
+                    "type_3":            t3,
                 })
 
         printed   = sum(1 for o in orders if o["printed"])
@@ -941,6 +1040,12 @@ def api_orders_check_printed():
                             if op.last_print_time_utc else None
                         ),
                         "filename":          op.filename,
+                        "barcode_1":         op.barcode_1,
+                        "barcode_2":         op.barcode_2,
+                        "barcode_3":         op.barcode_3,
+                        "type_1":            op.type_1,
+                        "type_2":            op.type_2,
+                        "type_3":            op.type_3,
                     })
                 else:
                     unprinted.append(sn)
@@ -990,6 +1095,12 @@ def api_orders_history():
                         r.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
                         if r.last_print_time_utc else None
                     ),
+                    "barcode_1":       r.barcode_1,
+                    "barcode_2":       r.barcode_2,
+                    "barcode_3":       r.barcode_3,
+                    "type_1":          r.type_1,
+                    "type_2":          r.type_2,
+                    "type_3":          r.type_3,
                 }
                 for r in rows
             ]
@@ -1499,15 +1610,24 @@ def api_file_rescan(filename):
         except Exception as e:
             log_error("api_file_rescan.scan", e, {"filename": filename})
             return jsonify({"ok": False, "error": f"Lỗi quét PDF: {str(e)}"}), 500
+
+        page_barcode_map: dict = {}
+        try:
+            page_barcode_map = scan_pdf_all_pages_barcodes(str(file_path))
+        except Exception as e:
+            log_error("api_file_rescan.pdf_barcodes", e, {"filename": filename})
         
         # Cập nhật DB
         try:
             with get_session() as db:
+                uf = db.query(UploadedFile).filter(UploadedFile.filename == filename).first()
+                db.query(FilePageBarcode).filter(
+                    FilePageBarcode.uploaded_file_id == uf.id
+                ).delete()
                 # Xóa các FileOrder cũ
                 db.query(FileOrder).filter(FileOrder.filename == filename).delete()
                 
                 # Thêm FileOrder mới
-                uf = db.query(UploadedFile).filter(UploadedFile.filename == filename).first()
                 for order in scanned_orders:
                     db.add(FileOrder(
                         uploaded_file_id    = uf.id,
@@ -1519,6 +1639,15 @@ def api_file_rescan(filename):
                         delivery_method_raw = order.get("delivery_method_raw"),
                         page_number         = order.get("page"),
                     ))
+
+                for page_num, pairs in page_barcode_map.items():
+                    for text, sym in pairs:
+                        db.add(FilePageBarcode(
+                            uploaded_file_id = uf.id,
+                            page_number      = int(page_num),
+                            barcode          = text[:255],
+                            symbology        = sym[:50] if sym else None,
+                        ))
                 
                 # Cập nhật note
                 uf.note = json.dumps(unrecognized_pages, ensure_ascii=False) if unrecognized_pages else None
