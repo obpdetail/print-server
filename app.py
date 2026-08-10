@@ -83,6 +83,71 @@ def _parse_note(note_raw: str | None) -> list:
     except Exception:
         return []
 
+
+def _first_page_barcode_map(
+    db,
+    rows: list,
+) -> dict[tuple[str, int], str]:
+    """Map (filename, page_number) -> barcode đầu tiên trên trang (file_page_barcodes)."""
+    keys: set[tuple[str, int]] = set()
+    filenames: set[str] = set()
+    for op in rows:
+        if op.barcode_1:
+            continue
+        if op.filename and op.page_number is not None:
+            keys.add((op.filename, op.page_number))
+            filenames.add(op.filename)
+    if not keys:
+        return {}
+
+    uf_rows = (
+        db.query(UploadedFile.id, UploadedFile.filename)
+        .filter(UploadedFile.filename.in_(filenames))
+        .all()
+    )
+    fn_to_ufid = {fn: uid for uid, fn in uf_rows}
+    if not fn_to_ufid:
+        return {}
+
+    page_nums = {pn for _, pn in keys}
+    fpb_rows = (
+        db.query(
+            FilePageBarcode.uploaded_file_id,
+            FilePageBarcode.page_number,
+            FilePageBarcode.barcode,
+        )
+        .filter(
+            FilePageBarcode.uploaded_file_id.in_(fn_to_ufid.values()),
+            FilePageBarcode.page_number.in_(page_nums),
+        )
+        .order_by(FilePageBarcode.page_number, FilePageBarcode.id)
+        .all()
+    )
+    ufid_to_fn = {v: k for k, v in fn_to_ufid.items()}
+    out: dict[tuple[str, int], str] = {}
+    for ufid, page_num, barcode in fpb_rows:
+        fn = ufid_to_fn.get(ufid)
+        if not fn:
+            continue
+        key = (fn, page_num)
+        if key in keys and key not in out:
+            out[key] = barcode
+    return out
+
+
+def _waybill_barcode_for_order(
+    op: OrderPrint,
+    fpb_map: dict[tuple[str, int], str],
+) -> str | None:
+    """Mã vận đơn (barcode trên file). Trống nếu không có mã đơn hoặc không có barcode."""
+    if not (op.order_sn or "").strip():
+        return None
+    if op.barcode_1:
+        return op.barcode_1
+    if op.filename and op.page_number is not None:
+        return fpb_map.get((op.filename, op.page_number))
+    return None
+
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXT
 
@@ -1080,6 +1145,7 @@ def api_orders_history():
                 qry = qry.filter(OrderPrint.delivery_method == delivery_method)
             total = qry.count()
             rows  = qry.order_by(OrderPrint.id.desc()).offset(offset).limit(per_page).all()
+            fpb_map = _first_page_barcode_map(db, rows)
             orders = [
                 {
                     "id":              r.id,
@@ -1095,6 +1161,7 @@ def api_orders_history():
                         r.last_print_time_utc.strftime("%Y-%m-%d %H:%M:%S")
                         if r.last_print_time_utc else None
                     ),
+                    "waybill_barcode": _waybill_barcode_for_order(r, fpb_map),
                     "barcode_1":       r.barcode_1,
                     "barcode_2":       r.barcode_2,
                     "barcode_3":       r.barcode_3,

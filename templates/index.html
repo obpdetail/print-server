@@ -1375,6 +1375,7 @@
             <thead>
               <tr>
                 <th>Mã đơn</th>
+                <th>Mã vận đơn</th>
                 <th>Shop</th>
                 <th>Nền tảng</th>
                 <th>ĐVVC</th>
@@ -1387,7 +1388,7 @@
             </thead>
             <tbody id="or-tbody">
               <tr>
-                <td colspan="9" class="dt-empty">Đang tải…</td>
+                <td colspan="10" class="dt-empty">Đang tải…</td>
               </tr>
             </tbody>
           </table>
@@ -2379,7 +2380,7 @@
         if (method) params.set("delivery_method", method);
         const tbody = document.getElementById("or-tbody");
         tbody.innerHTML =
-          '<tr><td colspan="9" class="dt-loading">Đang tải…</td></tr>';
+          '<tr><td colspan="10" class="dt-loading">Đang tải…</td></tr>';
         try {
           const r = await fetch(`/api/orders/history?${params}`);
           const d = await r.json();
@@ -2389,13 +2390,14 @@
             `${d.total} bản ghi`;
           if (!d.orders.length) {
             tbody.innerHTML =
-              '<tr><td colspan="9" class="dt-empty">Không có dữ liệu.</td></tr>';
+              '<tr><td colspan="10" class="dt-empty">Không có dữ liệu.</td></tr>';
           } else {
             tbody.innerHTML = d.orders
               .map(
                 (o) => `
         <tr>
-          <td class="monospace">${escHtml(o.order_sn)}</td>
+          <td class="monospace">${escHtml(o.order_sn || "")}</td>
+          <td class="monospace">${escHtml(o.waybill_barcode || "")}</td>
           <td>${escHtml(o.shop_name || "—")}</td>
           <td><span class="tag tag-platform">${escHtml(o.platform || "—")}</span></td>
           <td>${escHtml(o.delivery_method || "—")}</td>
@@ -2414,7 +2416,7 @@
           }
           renderPagination("or-pg", page, totalPages, "loadOrdersTable");
         } catch (e) {
-          tbody.innerHTML = `<tr><td colspan="9" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="10" class="dt-empty">❌ ${escHtml(e.message)}</td></tr>`;
         }
       }
 
