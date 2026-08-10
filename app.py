@@ -32,7 +32,7 @@ from core.pdf_barcodes import (
     read_barcodes_on_pdf_page,
     scan_pdf_all_pages_barcodes,
 )
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import aliased
 from database import (
     init_db, get_session, UploadedFile, FileOrder, FilePageBarcode, PrintJob,
@@ -1128,6 +1128,7 @@ def api_orders_history():
     page            = max(1, int(request.args.get("page", 1)))
     per_page        = min(100, int(request.args.get("per_page", 20)))
     order_sn        = request.args.get("order_sn",        "").strip()
+    waybill_barcode = request.args.get("waybill_barcode", "").strip()
     shop_name       = request.args.get("shop_name",       "").strip()
     platform        = request.args.get("platform",        "").strip()
     delivery_method = request.args.get("delivery_method", "").strip()
@@ -1137,14 +1138,39 @@ def api_orders_history():
             qry = db.query(OrderPrint)
             if order_sn:
                 qry = qry.filter(OrderPrint.order_sn.like(f"%{order_sn}%"))
+            if waybill_barcode:
+                like = f"%{waybill_barcode}%"
+                qry = (
+                    qry
+                    .outerjoin(UploadedFile, UploadedFile.filename == OrderPrint.filename)
+                    .outerjoin(
+                        FilePageBarcode,
+                        (FilePageBarcode.uploaded_file_id == UploadedFile.id)
+                        & (FilePageBarcode.page_number == OrderPrint.page_number),
+                    )
+                    .filter(
+                        or_(
+                            OrderPrint.barcode_1.like(like),
+                            OrderPrint.barcode_2.like(like),
+                            OrderPrint.barcode_3.like(like),
+                            FilePageBarcode.barcode.like(like),
+                        )
+                    )
+                )
             if shop_name:
                 qry = qry.filter(OrderPrint.shop_name.like(f"%{shop_name}%"))
             if platform:
                 qry = qry.filter(OrderPrint.platform == platform)
             if delivery_method:
                 qry = qry.filter(OrderPrint.delivery_method == delivery_method)
-            total = qry.count()
-            rows  = qry.order_by(OrderPrint.id.desc()).offset(offset).limit(per_page).all()
+            total = qry.distinct().count()
+            rows  = (
+                qry.distinct()
+                .order_by(OrderPrint.id.desc())
+                .offset(offset)
+                .limit(per_page)
+                .all()
+            )
             fpb_map = _first_page_barcode_map(db, rows)
             orders = [
                 {

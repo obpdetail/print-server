@@ -1329,6 +1329,14 @@
           />
           <input
             class="dt-search-input"
+            style="flex: 2; min-width: 160px"
+            type="text"
+            id="or-waybill"
+            placeholder="🔍 Mã vận đơn…"
+            oninput="debouncedSearch('orders')"
+          />
+          <input
+            class="dt-search-input"
             style="flex: 2; min-width: 140px"
             type="text"
             id="or-shop"
@@ -2368,6 +2376,7 @@
         page = page || _tblState.orders.page;
         _tblState.orders.page = page;
         const order_sn = document.getElementById("or-sn").value.trim();
+        const waybill_barcode = document.getElementById("or-waybill").value.trim();
         const shop = document.getElementById("or-shop").value.trim();
         const platform = document.getElementById("or-platform").value;
         const method = document.getElementById("or-method").value;
@@ -2375,6 +2384,7 @@
           parseInt(document.getElementById("orders-per-page").value) || 10;
         const params = new URLSearchParams({ page, per_page });
         if (order_sn) params.set("order_sn", order_sn);
+        if (waybill_barcode) params.set("waybill_barcode", waybill_barcode);
         if (shop) params.set("shop_name", shop);
         if (platform) params.set("platform", platform);
         if (method) params.set("delivery_method", method);
