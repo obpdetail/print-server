@@ -1266,7 +1266,8 @@ def api_packed_orders_history():
 def api_packed_orders_scan():
     """Ghi một lần quét QR/barcode vào barcode_scan_history (giờ theo múi giờ máy chủ)."""
     data = request.get_json(force=True) or {}
-    source_name = HANDHELD_SCANNER_SOURCE_NAME
+    raw_source = str(data.get("source_name") or "").strip()
+    source_name = raw_source or HANDHELD_SCANNER_SOURCE_NAME
     barcode = str(data.get("barcode", "")).strip()
     barcode_type = str(data.get("barcode_type", "QR") or "QR").strip() or "QR"
 
@@ -1276,6 +1277,8 @@ def api_packed_orders_scan():
         return jsonify({"ok": False, "error": "Mã quét tối đa 255 ký tự."}), 400
     if len(barcode_type) > 50:
         return jsonify({"ok": False, "error": "Loại mã tối đa 50 ký tự."}), 400
+    if len(source_name) > 100:
+        return jsonify({"ok": False, "error": "source_name tối đa 100 ký tự."}), 400
 
     # Giờ theo múi giờ máy chủ (naive local), không dùng UTC
     now = datetime.now()
@@ -1296,6 +1299,8 @@ def api_packed_orders_scan():
             "ok": True,
             "id": new_id,
             "scan_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "source_name": source_name,
+            "barcode": barcode,
         })
     except Exception as e:
         log_error("api_packed_orders_scan", e)
