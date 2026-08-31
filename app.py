@@ -300,6 +300,12 @@ def api_upload():
     dest          = UPLOAD_FOLDER / unique_name
     file.save(str(dest))
 
+    try:
+        from core.pdf_enlarge import enlarge_barcode_in_pdf
+        enlarge_barcode_in_pdf(str(dest))
+    except Exception as e:
+        log_error("api_upload.enlarge", e, {"filename": unique_name})
+
     file_size_kb = int(round(dest.stat().st_size / 1024, 0))
     upload_ip    = request.remote_addr
     now_utc      = _utcnow()
