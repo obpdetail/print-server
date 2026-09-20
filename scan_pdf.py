@@ -3,6 +3,10 @@
 scan_pdf.py
 Quét file PDF và trích xuất thông tin đơn hàng từng trang.
 Sử dụng core/parsers để xử lý theo từng loại ĐVVC / nền tảng.
+
+Nếu trang không có text layout (PDF ảnh):
+  - OCR bằng Tesseract (lang=vie)
+  - Bổ sung giá trị barcode/QR detect được vào text để parser dùng
 """
 
 import sys
@@ -15,6 +19,20 @@ BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
 from core.parsers import dispatch_page
+from core.pdf_barcodes import read_barcodes_on_pdf_page
+from core.pdf_ocr import ocr_pdf_page, page_has_text_layout
+
+
+def _append_barcode_texts(full_text: str, pairs: list[tuple[str, str]]) -> str:
+    """Ghép mã barcode/QR vào text để parser nhận SPXVN… chính xác hơn OCR."""
+    if not pairs:
+        return full_text
+    lines = [full_text.rstrip()] if full_text.strip() else []
+    lines.append("")
+    lines.append("--- BARCODES ---")
+    for text, sym in pairs:
+        lines.append(f"{sym}: {text}" if sym else text)
+    return "\n".join(lines)
 
 
 def scan_pdf_for_orders(merged_pdf_path: str):
@@ -33,7 +51,30 @@ def scan_pdf_for_orders(merged_pdf_path: str):
     with pdfplumber.open(merged_pdf_path) as pdf:
         for i, page in enumerate(pdf.pages, start=1):
             full_text = page.extract_text(layout=True) or ""
-            words     = page.extract_words()
+            words = page.extract_words() or []
+
+            page_barcodes: list[tuple[str, str]] = []
+            if not page_has_text_layout(full_text, words):
+                # PDF ảnh: OCR tiếng Việt + detect barcode/QR
+                try:
+                    ocr_text = ocr_pdf_page(merged_pdf_path, i)
+                except Exception as e:
+                    print(f"Page {i}: ⚠️  OCR lỗi — {e}")
+                    ocr_text = ""
+                try:
+                    page_barcodes = read_barcodes_on_pdf_page(
+                        merged_pdf_path, i, max_codes=10
+                    )
+                except Exception as e:
+                    print(f"Page {i}: ⚠️  Detect barcode/QR lỗi — {e}")
+                    page_barcodes = []
+                full_text = _append_barcode_texts(ocr_text, page_barcodes)
+                words = []
+                if ocr_text or page_barcodes:
+                    print(
+                        f"Page {i}: 🖼️  PDF ảnh → OCR(vie)"
+                        f" + {len(page_barcodes)} barcode/QR"
+                    )
 
             result = dispatch_page(i, full_text, words, page)
 
@@ -73,7 +114,7 @@ def scan_pdf_for_orders(merged_pdf_path: str):
 
 
 if __name__ == "__main__":
-    merged_pdf_path = "test-files/20260303_031042_shopee-ok509br5ns-2026-03-03-1772507401230.pdf"
+    merged_pdf_path = "test-files/2029-09-19-4.pdf"
     df_orders, unrecognized = scan_pdf_for_orders(merged_pdf_path)
     print(df_orders)
     if unrecognized:

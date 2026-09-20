@@ -28,15 +28,24 @@ def _pairs_from_pil_image(
 
     decoded = zxingcpp.read_barcodes(img)
     out: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    # text -> (symbology, index trong out); ưu tiên giữ QR khi trùng nội dung
+    seen: dict[str, int] = {}
     for b in decoded:
         text = (getattr(b, "text", None) or "").strip()
-        if not text or text in seen:
+        if not text:
             continue
-        seen.add(text)
-        out.append((text, _format_to_str(getattr(b, "format", None))))
+        sym = _format_to_str(getattr(b, "format", None))
+        is_qr = "QR" in sym.upper()
+        if text in seen:
+            idx = seen[text]
+            prev_sym = out[idx][1] or ""
+            if is_qr and "QR" not in prev_sym.upper():
+                out[idx] = (text, sym)
+            continue
         if max_codes is not None and len(out) >= max_codes:
             break
+        seen[text] = len(out)
+        out.append((text, sym))
     return out
 
 

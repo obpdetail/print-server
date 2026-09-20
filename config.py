@@ -31,3 +31,11 @@ BARCODE_MIN_HEIGHT_RATIO   = float(os.getenv("BARCODE_MIN_HEIGHT_RATIO", "0.055"
 QR_ENLARGE_ENABLED         = os.getenv("QR_ENLARGE_ENABLED", "true").lower() in ("1", "true", "yes")
 QR_MIN_SIZE_PT             = float(os.getenv("QR_MIN_SIZE_PT", "85"))
 QR_TARGET_SIZE_RATIO       = float(os.getenv("QR_TARGET_SIZE_RATIO", "0.20"))
+
+# ── OCR (PDF ảnh / không có text layout) ─────────────────────
+TESSERACT_CMD = os.getenv(
+    "TESSERACT_CMD",
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+)
+TESSERACT_LANG = os.getenv("TESSERACT_LANG", "vie")
+TESSERACT_OCR_ZOOM = float(os.getenv("TESSERACT_OCR_ZOOM", "2.5"))
