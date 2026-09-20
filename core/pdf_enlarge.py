@@ -198,6 +198,34 @@ def _enlarge_qr_on_page(page: fitz.Page, doc: fitz.Document, target_size: float)
     return True
 
 
+def _barcode_size_ok(
+    page: fitz.Page,
+    target_width: float,
+    target_height: float,
+) -> bool | None:
+    """
+    Kiểm tra size barcode trên 1 trang.
+    True  = tìm thấy barcode và đã đủ lớn
+    False = tìm thấy barcode nhưng còn nhỏ
+    None  = không tìm thấy barcode
+    """
+    image_bc = _find_image_barcode(page)
+    if image_bc:
+        rect, _xref = image_bc
+        if rect.width >= target_width * 0.95 and rect.height >= target_height * 0.95:
+            return True
+        return False
+
+    vector_rect = _find_vector_barcode_rect(page)
+    if not vector_rect:
+        return None
+
+    # Cùng logic với _enlarge_barcode_region: đã đủ lớn nếu scale <= 1.02
+    scale_w = target_width / vector_rect.width if vector_rect.width < target_width else 1.0
+    scale_h = target_height / vector_rect.height if vector_rect.height < target_height else 1.0
+    return max(scale_w, scale_h) <= 1.02
+
+
 def enlarge_barcode_in_pdf(
     pdf_path: str,
     *,
@@ -208,12 +236,23 @@ def enlarge_barcode_in_pdf(
     """
     Phóng to barcode và/hoặc QR code nếu nhỏ hơn ngưỡng cấu hình.
     Barcode/QR đã đủ lớn sẽ được bỏ qua.
+
+    Nếu trang đầu đã đủ size barcode thì bỏ qua kiểm tra cả file.
     """
     if not BARCODE_ENLARGE_ENABLED and not QR_ENLARGE_ENABLED:
         return False
 
     doc = fitz.open(pdf_path)
     changed = False
+
+    # Trang đầu đủ size barcode → bỏ qua toàn bộ file
+    if BARCODE_ENLARGE_ENABLED and doc.page_count > 0:
+        first = doc[0]
+        first_target_w = max(min_width_pt, first.rect.width * target_width_ratio)
+        first_target_h = first.rect.height * min_height_ratio
+        if _barcode_size_ok(first, first_target_w, first_target_h) is True:
+            doc.close()
+            return False
 
     for page in doc:
         if BARCODE_ENLARGE_ENABLED:

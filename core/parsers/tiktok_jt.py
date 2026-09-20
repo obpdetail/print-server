@@ -3,7 +3,10 @@
 core/parsers/tiktok_jt.py
 Parser cho TikTok Shop – J&T Express.
 
-Nhận dạng : có "Package ID:" trên trang (thay vì "Mã vận đơn:")
+Nhận dạng :
+  - Cũ: có chữ "J&T" + "ET"
+  - Mới (label TikTok): có "ET" + "Order ID" + ("TikTok" hoặc "Package ID")
+    (nhiều phiếu mới không còn in chữ J&T)
 Platform  : tiktok
 Method code: JT
 """
@@ -17,27 +20,36 @@ from .base import BaseParser, PageResult
 
 class TikTokJTParser(BaseParser):
 
-    # Package ID đã bị loại bỏ khỏi hóa đơn hiện tại
-    # _RE_PACKAGE  = re.compile(r"Package\s*ID\s*:\s*(\S+)",  re.IGNORECASE)
-    _RE_ORDER    = re.compile(r"Order\s*ID\s*:\s*(\S+)",     re.IGNORECASE)
-    _RE_ET       = re.compile(r"\bET\b")  # "ET" đứng một mình
-    _RE_SHOP     = re.compile(
+    _RE_PACKAGE = re.compile(r"Package\s*ID\s*:\s*(\S+)", re.IGNORECASE)
+    _RE_ORDER   = re.compile(r"Order\s*ID\s*:\s*(\S+)", re.IGNORECASE)
+    _RE_ET      = re.compile(r"\bET\b")  # "ET" đứng một mình
+    _RE_SHOP    = re.compile(
         r"Người\s+gửi\s*[\n\r\s]*([^\n\r]+?)"
-        r"(?=\n|\r|Căn|Số|Phường|Xã|Quận|Huyện|Thành\s*phố|[0-9])",
+        r"(?=\n|\r|Căn|Số|Phường|Xã|Quận|Huyện|Thành\s*phố|[0-9]|Người\s+nhận)",
         re.IGNORECASE,
     )
 
     def can_handle(self, full_text: str, words: list) -> bool:
         has_jt = "J&T" in full_text or "J & T" in full_text
         has_et = bool(self._RE_ET.search(full_text))
-        return has_jt and has_et
+        if has_jt and has_et:
+            return True
+
+        # Label TikTok/J&T mới: không còn chữ J&T
+        has_order = bool(self._RE_ORDER.search(full_text))
+        has_package = bool(self._RE_PACKAGE.search(full_text))
+        has_tiktok = "tiktok" in full_text.lower()
+        return has_et and has_order and (has_tiktok or has_package)
 
     def parse(
         self, page_number: int, full_text: str, words: list, page
     ) -> PageResult:
         # ── Mã đơn ──────────────────────────────────────────────
-        m_order  = self._RE_ORDER.search(full_text)
+        m_order = self._RE_ORDER.search(full_text)
         order_sn = m_order.group(1) if m_order else None
+        if not order_sn:
+            m_pkg = self._RE_PACKAGE.search(full_text)
+            order_sn = m_pkg.group(1) if m_pkg else None
 
         # ── Tên shop ─────────────────────────────────────────────
         shop_name = self._extract_shop_name(full_text)
@@ -55,8 +67,11 @@ class TikTokJTParser(BaseParser):
         m = self._RE_SHOP.search(full_text)
         if not m:
             return "UNKNOWN_SHOP"
-        raw    = m.group(1).strip()
-        parts  = raw.split()
+        raw = m.group(1).strip()
+        # Một số phiếu dính chữ: "Người gửiKim Khí..."
+        if raw.lower().startswith("ửi"):
+            raw = raw[2:].lstrip()
+        parts = raw.split()
         result = []
         for part in parts:
             if not part:
