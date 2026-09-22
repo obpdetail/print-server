@@ -139,9 +139,7 @@ def _waybill_barcode_for_order(
     op: OrderPrint,
     fpb_map: dict[tuple[str, int], str],
 ) -> str | None:
-    """Mã vận đơn (barcode trên file). Trống nếu không có mã đơn hoặc không có barcode."""
-    if not (op.order_sn or "").strip():
-        return None
+    """Mã vận đơn (barcode/QR trên file)."""
     if op.barcode_1:
         return op.barcode_1
     if op.filename and op.page_number is not None:
@@ -369,11 +367,11 @@ def api_upload():
     upload_warnings = []
     try:
         if scanned_orders:
-            order_sns = [o["order_sn"] for o in scanned_orders]
+            order_sns = [o["order_sn"] for o in scanned_orders if o.get("order_sn")]
             with get_session() as db:
                 existing = db.query(OrderPrint).filter(
                     OrderPrint.order_sn.in_(order_sns)
-                ).all()
+                ).all() if order_sns else []
                 for op in existing:
                     upload_warnings.append({
                         "order_sn":        op.order_sn,
@@ -516,15 +514,19 @@ def api_print_check():
             ]
 
         if file_order_dicts:
-            order_sns = [fo["order_sn"] for fo in file_order_dicts]
-            fo_map    = {fo["order_sn"]: fo for fo in file_order_dicts}
+            order_sns = [fo["order_sn"] for fo in file_order_dicts if fo.get("order_sn")]
+            fo_map    = {fo["order_sn"]: fo for fo in file_order_dicts if fo.get("order_sn")}
         else:
             # Backward compat: file upload trước khi có feature này
             df_orders, _unrecognized = scan_pdf_for_orders(str(filepath))
             result["unrecognized_pages"] = _unrecognized
             if not df_orders.empty:
                 order_sns = df_orders["order_sn"].dropna().tolist()
-                fo_map    = {row["order_sn"]: row for _, row in df_orders.iterrows()}
+                fo_map    = {
+                    row["order_sn"]: row
+                    for _, row in df_orders.iterrows()
+                    if row.get("order_sn")
+                }
             else:
                 order_sns = []
                 fo_map    = {}
@@ -660,6 +662,44 @@ def api_print():
                 }
                 for fo in file_order_rows
             ]
+
+            # Trang chưa nhận diện ĐVVC nhưng đã có QR/barcode → vẫn đưa vào đơn đã in
+            covered_pages = {
+                int(fo["page"]) for fo in file_order_dicts if fo.get("page") is not None
+            }
+            covered_sns = {fo["order_sn"] for fo in file_order_dicts if fo.get("order_sn")}
+            uf_row = db.query(UploadedFile).filter(UploadedFile.filename == filename).first()
+            if uf_row:
+                fpb_rows = (
+                    db.query(FilePageBarcode)
+                    .filter(FilePageBarcode.uploaded_file_id == uf_row.id)
+                    .order_by(FilePageBarcode.page_number, FilePageBarcode.id)
+                    .all()
+                )
+                # Ưu tiên QR trên mỗi trang
+                best_by_page: dict[int, tuple[str, str | None]] = {}
+                for row in fpb_rows:
+                    pn = int(row.page_number)
+                    if pn in covered_pages:
+                        continue
+                    sym = (row.symbology or "")
+                    text = (row.barcode or "").strip()
+                    if not text or text in covered_sns:
+                        continue
+                    is_qr = "QR" in sym.upper()
+                    prev = best_by_page.get(pn)
+                    if prev is None or (is_qr and "QR" not in (prev[1] or "").upper()):
+                        best_by_page[pn] = (text, sym)
+                for pn, (text, _sym) in sorted(best_by_page.items()):
+                    file_order_dicts.append({
+                        "order_sn":            None,
+                        "shop_name":           None,
+                        "platform":            "unknown",
+                        "delivery_method":     None,
+                        "delivery_method_raw": "",
+                        "page":                pn,
+                    })
+
         if file_order_dicts:
             orders_info = file_order_dicts
         else:
@@ -732,14 +772,40 @@ def api_print():
 
                     for order in orders_info:
                         slots = _slots_for_order_page(order.get("page"))
-                        existing_op = db.query(OrderPrint).filter(
-                            OrderPrint.order_sn == order["order_sn"]
-                        ).first()
+                        order_sn = order.get("order_sn")
+                        existing_op = None
+                        if order_sn:
+                            existing_op = db.query(OrderPrint).filter(
+                                OrderPrint.order_sn == order_sn
+                            ).first()
+                        else:
+                            # Chỉ có QR: khớp theo barcode hoặc filename + trang
+                            if slots.get("barcode_1"):
+                                existing_op = (
+                                    db.query(OrderPrint)
+                                    .filter(
+                                        OrderPrint.order_sn.is_(None),
+                                        OrderPrint.barcode_1 == slots["barcode_1"],
+                                    )
+                                    .first()
+                                )
+                            if existing_op is None and order.get("page") is not None:
+                                existing_op = (
+                                    db.query(OrderPrint)
+                                    .filter(
+                                        OrderPrint.filename == filename,
+                                        OrderPrint.page_number == order.get("page"),
+                                        OrderPrint.order_sn.is_(None),
+                                    )
+                                    .first()
+                                )
                         if existing_op:
                             existing_op.print_count         += 1
                             existing_op.last_print_time_utc  = now_utc
                             existing_op.filename             = filename
                             existing_op.page_number          = order.get("page")
+                            if order_sn:
+                                existing_op.order_sn = order_sn
                             existing_op.barcode_1            = slots["barcode_1"]
                             existing_op.barcode_2            = slots["barcode_2"]
                             existing_op.barcode_3            = slots["barcode_3"]
@@ -749,7 +815,7 @@ def api_print():
                         else:
                             db.add(OrderPrint(
                                 filename=filename,
-                                order_sn=order["order_sn"],
+                                order_sn=order_sn,
                                 shop_name=order.get("shop_name"),
                                 platform=order.get("platform", "unknown"),
                                 delivery_method=order.get("delivery_method"),
@@ -973,13 +1039,13 @@ def api_file_orders(filename):
                                 "printed": 0, "unprinted": 0})
 
             # Lấy trạng thái in của tất cả đơn trong file (1 query)
-            order_sns   = [fo.order_sn for fo in file_orders]
+            order_sns   = [fo.order_sn for fo in file_orders if fo.order_sn]
             printed_map = {
                 op.order_sn: op
                 for op in db.query(OrderPrint)
                            .filter(OrderPrint.order_sn.in_(order_sns))
                            .all()
-            }
+            } if order_sns else {}
 
             uf_row = (
                 db.query(UploadedFile)
@@ -1133,8 +1199,12 @@ def api_orders_check_printed():
 def api_orders_history():
     page            = max(1, int(request.args.get("page", 1)))
     per_page        = min(100, int(request.args.get("per_page", 20)))
-    order_sn        = request.args.get("order_sn",        "").strip()
-    waybill_barcode = request.args.get("waybill_barcode", "").strip()
+    # q: tìm tương đối theo mã đơn hàng HOẶC mã vận đơn (barcode)
+    q               = (
+        request.args.get("q", "").strip()
+        or request.args.get("order_sn", "").strip()
+        or request.args.get("waybill_barcode", "").strip()
+    )
     shop_name       = request.args.get("shop_name",       "").strip()
     platform        = request.args.get("platform",        "").strip()
     delivery_method = request.args.get("delivery_method", "").strip()
@@ -1142,10 +1212,8 @@ def api_orders_history():
     try:
         with get_session() as db:
             qry = db.query(OrderPrint)
-            if order_sn:
-                qry = qry.filter(OrderPrint.order_sn.like(f"%{order_sn}%"))
-            if waybill_barcode:
-                like = f"%{waybill_barcode}%"
+            if q:
+                like = f"%{q}%"
                 qry = (
                     qry
                     .outerjoin(UploadedFile, UploadedFile.filename == OrderPrint.filename)
@@ -1156,6 +1224,7 @@ def api_orders_history():
                     )
                     .filter(
                         or_(
+                            OrderPrint.order_sn.like(like),
                             OrderPrint.barcode_1.like(like),
                             OrderPrint.barcode_2.like(like),
                             OrderPrint.barcode_3.like(like),
@@ -1486,7 +1555,8 @@ def api_file_report(filename):
         from collections import defaultdict
         shop_orders: dict[str, list[str]] = defaultdict(list)
         for fo in file_orders:
-            shop_orders[fo["shop_name"]].append(fo["order_sn"])
+            if fo.get("order_sn"):
+                shop_orders[fo["shop_name"]].append(fo["order_sn"])
 
         # ── Bước 2: Resolve shop_id cho từng shop ───────────────────────────
         shop_id_map: dict[str, int] = {}  # shop_name → shop_id

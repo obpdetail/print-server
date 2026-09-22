@@ -7,6 +7,9 @@ Sử dụng core/parsers để xử lý theo từng loại ĐVVC / nền tảng.
 Nếu trang không có text layout (PDF ảnh):
   - OCR bằng Tesseract (lang=vie)
   - Bổ sung giá trị barcode/QR detect được vào text để parser dùng
+
+Nếu không nhận diện được ĐVVC nhưng có QR/barcode:
+  - Vẫn lưu bản ghi (order_sn = null, QR lưu ở file_page_barcodes)
 """
 
 import sys
@@ -35,6 +38,33 @@ def _append_barcode_texts(full_text: str, pairs: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _pick_qr_or_first(pairs: list[tuple[str, str]]) -> str | None:
+    """Ưu tiên mã QR; không có thì lấy barcode đầu tiên."""
+    if not pairs:
+        return None
+    for text, sym in pairs:
+        if text and sym and "QR" in str(sym).upper():
+            return text.strip()
+    for text, _sym in pairs:
+        if text and str(text).strip():
+            return str(text).strip()
+    return None
+
+
+def _ensure_page_barcodes(
+    pdf_path: str,
+    page_number: int,
+    existing: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    if existing:
+        return existing
+    try:
+        return read_barcodes_on_pdf_page(pdf_path, page_number, max_codes=10)
+    except Exception as e:
+        print(f"Page {page_number}: ⚠️  Detect barcode/QR lỗi — {e}")
+        return []
+
+
 def scan_pdf_for_orders(merged_pdf_path: str):
     """
     Quét file PDF, trả về tuple (DataFrame, unrecognized_pages).
@@ -61,13 +91,7 @@ def scan_pdf_for_orders(merged_pdf_path: str):
                 except Exception as e:
                     print(f"Page {i}: ⚠️  OCR lỗi — {e}")
                     ocr_text = ""
-                try:
-                    page_barcodes = read_barcodes_on_pdf_page(
-                        merged_pdf_path, i, max_codes=10
-                    )
-                except Exception as e:
-                    print(f"Page {i}: ⚠️  Detect barcode/QR lỗi — {e}")
-                    page_barcodes = []
+                page_barcodes = _ensure_page_barcodes(merged_pdf_path, i, [])
                 full_text = _append_barcode_texts(ocr_text, page_barcodes)
                 words = []
                 if ocr_text or page_barcodes:
@@ -78,21 +102,11 @@ def scan_pdf_for_orders(merged_pdf_path: str):
 
             result = dispatch_page(i, full_text, words, page)
 
-            if result is None:
-                print(f"Page {i}: ⚠️  Không nhận dạng được ĐVVC — bỏ qua")
-                unrecognized.append({
-                    "page_number":     i,
-                    "delivery_method": None,
-                    "order_sn":        None,
-                })
-                continue
-
-            print(
-                f"Page {i}: [{result.platform.upper()} / {result.delivery_method_raw or result.delivery_method}]"
-                f"  order={result.order_sn}  shop={result.shop_name}"
-            )
-
-            if result.order_sn:
+            if result is not None and result.order_sn:
+                print(
+                    f"Page {i}: [{result.platform.upper()} / {result.delivery_method_raw or result.delivery_method}]"
+                    f"  order={result.order_sn}  shop={result.shop_name}"
+                )
                 rows.append({
                     "page":                result.page_number,
                     "order_sn":            result.order_sn,
@@ -101,9 +115,53 @@ def scan_pdf_for_orders(merged_pdf_path: str):
                     "delivery_method":     result.delivery_method,
                     "delivery_method_raw": result.delivery_method_raw,
                 })
+                continue
+
+            # Chưa có mã đơn → quét QR; mã đơn để null, QR lưu ở file_page_barcodes
+            page_barcodes = _ensure_page_barcodes(merged_pdf_path, i, page_barcodes)
+            qr_or_code = _pick_qr_or_first(page_barcodes)
+
+            if qr_or_code:
+                if result is not None:
+                    print(
+                        f"Page {i}: [{result.platform.upper()} / {result.delivery_method_raw or result.delivery_method}]"
+                        f"  order=null  qr={qr_or_code}  shop={result.shop_name}"
+                    )
+                    rows.append({
+                        "page":                result.page_number,
+                        "order_sn":            None,
+                        "shop_name":           result.shop_name,
+                        "platform":            result.platform,
+                        "delivery_method":     result.delivery_method,
+                        "delivery_method_raw": result.delivery_method_raw,
+                    })
+                else:
+                    print(
+                        f"Page {i}: ⚠️  Chưa nhận diện ĐVVC — lưu QR (mã đơn=null): {qr_or_code}"
+                    )
+                    rows.append({
+                        "page":                i,
+                        "order_sn":            None,
+                        "shop_name":           None,
+                        "platform":            "unknown",
+                        "delivery_method":     None,
+                        "delivery_method_raw": None,
+                    })
+                continue
+
+            if result is None:
+                print(f"Page {i}: ⚠️  Không nhận dạng được ĐVVC — bỏ qua")
+                unrecognized.append({
+                    "page_number":     i,
+                    "delivery_method": None,
+                    "order_sn":        None,
+                })
             else:
-                # Parser nhận dạng được ĐVVC nhưng không trích xuất được mã đơn
-                print(f"Page {i}: ⚠️  Nhận dạng được [{result.delivery_method_raw or result.delivery_method}] nhưng không lấy được mã đơn — bỏ qua")
+                print(
+                    f"Page {i}: ⚠️  Nhận dạng được "
+                    f"[{result.delivery_method_raw or result.delivery_method}] "
+                    f"nhưng không lấy được mã đơn/QR — bỏ qua"
+                )
                 unrecognized.append({
                     "page_number":     i,
                     "delivery_method": result.delivery_method_raw or result.delivery_method or None,

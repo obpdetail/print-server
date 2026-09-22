@@ -77,7 +77,7 @@ class FileOrder(Base):
                                  nullable=True, index=True)
     filename            = Column(String(255), nullable=False, index=True)
     # ^ tên file trên disk (khớp với uploaded_files.filename)
-    order_sn            = Column(String(100), nullable=False)
+    order_sn            = Column(String(100), nullable=True)
     shop_name           = Column(String(255), nullable=True)
     platform            = Column(String(50),  nullable=True)
     delivery_method     = Column(String(50),  nullable=True)
@@ -149,7 +149,7 @@ class OrderPrint(Base):
     id                  = Column(Integer, primary_key=True, autoincrement=True)
     filename            = Column(String(255), nullable=False, index=True)
     # ^ file gần nhất chứa đơn này
-    order_sn            = Column(String(100), nullable=False)
+    order_sn            = Column(String(100), nullable=True)
     shop_name           = Column(String(255), nullable=True)
     platform            = Column(String(50),  nullable=True)
     # ^ "shopee" | "tiktok" | "lazada" | "unknown"
@@ -297,6 +297,8 @@ def init_db():
         "ALTER TABLE order_prints ADD COLUMN type_1 VARCHAR(50) NULL",
         "ALTER TABLE order_prints ADD COLUMN type_2 VARCHAR(50) NULL",
         "ALTER TABLE order_prints ADD COLUMN type_3 VARCHAR(50) NULL",
+        "ALTER TABLE file_orders MODIFY COLUMN order_sn VARCHAR(100) NULL",
+        "ALTER TABLE order_prints MODIFY COLUMN order_sn VARCHAR(100) NULL",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

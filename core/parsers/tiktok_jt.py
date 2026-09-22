@@ -4,9 +4,9 @@ core/parsers/tiktok_jt.py
 Parser cho TikTok Shop – J&T Express.
 
 Nhận dạng :
-  - Cũ: có chữ "J&T" + "ET"
-  - Mới (label TikTok): có "ET" + "Order ID" + ("TikTok" hoặc "Package ID")
-    (nhiều phiếu mới không còn in chữ J&T)
+  - Có chữ "J&T" / "J & T"
+  - Hoặc label TikTok: có "Order ID" + ("TikTok" hoặc "Package ID")
+    (nhiều phiếu mới không còn in chữ J&T / ET)
 Platform  : tiktok
 Method code: JT
 """
@@ -22,7 +22,6 @@ class TikTokJTParser(BaseParser):
 
     _RE_PACKAGE = re.compile(r"Package\s*ID\s*:\s*(\S+)", re.IGNORECASE)
     _RE_ORDER   = re.compile(r"Order\s*ID\s*:\s*(\S+)", re.IGNORECASE)
-    _RE_ET      = re.compile(r"\bET\b")  # "ET" đứng một mình
     _RE_SHOP    = re.compile(
         r"Người\s+gửi\s*[\n\r\s]*([^\n\r]+?)"
         r"(?=\n|\r|Căn|Số|Phường|Xã|Quận|Huyện|Thành\s*phố|[0-9]|Người\s+nhận)",
@@ -31,15 +30,14 @@ class TikTokJTParser(BaseParser):
 
     def can_handle(self, full_text: str, words: list) -> bool:
         has_jt = "J&T" in full_text or "J & T" in full_text
-        has_et = bool(self._RE_ET.search(full_text))
-        if has_jt and has_et:
+        if has_jt:
             return True
 
-        # Label TikTok/J&T mới: không còn chữ J&T
+        # Label TikTok/J&T mới: không còn chữ J&T / ET
         has_order = bool(self._RE_ORDER.search(full_text))
         has_package = bool(self._RE_PACKAGE.search(full_text))
         has_tiktok = "tiktok" in full_text.lower()
-        return has_et and has_order and (has_tiktok or has_package)
+        return has_order and (has_tiktok or has_package)
 
     def parse(
         self, page_number: int, full_text: str, words: list, page
